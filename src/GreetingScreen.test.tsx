@@ -313,4 +313,77 @@ describe('Greeting screen', () => {
     // greeting on screen, and never touches the region either (mockup row 12's scoping rule).
     expect(screen.getByRole('status')).toHaveTextContent('')
   })
+
+  // ---------------------------------------------------------------------------------------
+  // Issue 04 — A fresh visit starts clean. One acceptance test per Gherkin scenario.
+  //
+  // A guard slice by design (design.md §5.1, ADR-0004): both hooks have lived inside
+  // GreetingScreen since slice 01, so these two scenarios pass on their first run and no
+  // production code is expected. They are not decoration — they fail the moment either hook is
+  // lifted out of the component, which is the realistic regression, and they pin two different
+  // hooks: the greeting/alert steps pin the visit (INV-6a), the "Name field is empty" step pins
+  // the draft name (INV-6c). The fix for a red bar here is structural — put the state back in a
+  // useState inside GreetingScreen — never bespoke reset logic layered on state that leaked.
+  // ---------------------------------------------------------------------------------------
+
+  // "When the visitor starts a fresh visit" — the Contract vocabulary term (feature.md; VH-02).
+  // jsdom implements no navigation and no reload, so a fresh visit is this component unmounting
+  // and being rendered again from its initial state. Not window.location.reload(), and not a
+  // changed `key` on a tree that is still mounted — that would prove React remounts a subtree,
+  // not that a visitor arriving anew sees a clean screen. Real reload-survival in a browser is
+  // outside this seam and is a human check at VERIFY time (VH-02).
+  const startAFreshVisit = (endThePreviousVisit: () => void) => {
+    endThePreviousVisit()
+    render(<GreetingScreen />)
+  }
+
+  it('starts from a clean screen on a fresh visit after a greeting', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor typed "Ada" and was greeted "Hello, Ada". Both halves are asserted
+    // before the fresh visit: the field really does hold "Ada" and the region really does read
+    // the greeting, so neither Then below can pass against a screen that was already clean.
+    const { unmount } = render(<GreetingScreen />)
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Ada')
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the Name field is empty
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    // And the status region is present and contains no text — one observation on an element
+    // that must still resolve, so getByRole (not queryByRole): a region that vanished on the
+    // remount fails loudly here instead of passing as "no text" (VH-04, mockup row 13).
+    expect(screen.getByRole('status')).toHaveTextContent('')
+  })
+
+  it('starts from a clean screen on a fresh visit after an alert', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor submitted a blank Name field and sees the alert. Same Given as issue
+    // 03's three scenarios, word for word, so it is driven by the same named step rather than a
+    // second, subtly different copy. It submits an empty field, so this scenario's "Name field
+    // is empty" step is carried by the greeting scenario above, where the field really did hold
+    // text; here the step guards against a remount that restores a name from somewhere.
+    const { unmount } = render(<GreetingScreen />)
+    await submitABlankNameAndSeeTheAlert(user)
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the Name field is empty
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    // And no element with role "alert" is present
+    expect(screen.queryByRole('alert')).toBeNull()
+    // …and the field carries no stale reference to the alert that is gone (mockup row 14). Not
+    // a separate scenario: it is the same absence read from the field's side, and an arriving
+    // visitor's field must be described by nothing at all, exactly as on the very first arrival.
+    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
+    // And the status region is present and contains no text
+    expect(screen.getByRole('status')).toHaveTextContent('')
+  })
 })
