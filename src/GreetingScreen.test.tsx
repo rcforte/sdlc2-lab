@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { GreetingScreen } from './GreetingScreen'
 
 // The trimming scenarios assert the greeting with an anchored regex and whitespace
@@ -210,5 +210,107 @@ describe('Greeting screen', () => {
     // …and the reference resolves, so the message really is the field's description: the
     // "error is text, not colour" decision's testable half (VH-07).
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(ALERT_TEXT)
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // Issue 03 — Recover from a blank-name alert. One acceptance test per Gherkin scenario.
+  //
+  // All three share the same Given ("the visitor submitted a blank Name field and sees the
+  // alert"), so it is one named step below rather than three copies. It is driven keyboard-only
+  // and it asserts the alert really is on screen, so a scenario can never start from a Given
+  // that silently did not happen.
+  // ---------------------------------------------------------------------------------------
+
+  // Given the visitor submitted a blank Name field and sees the alert.
+  // Keyboard-only: tab to the Name field, tab on to "Greet me", activate it with Enter (a
+  // native button activates on Enter). Leaves focus on the submit control, where a visitor
+  // who just submitted actually is.
+  const submitABlankNameAndSeeTheAlert = async (user: UserEvent) => {
+    await user.tab()
+    await user.tab()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+  }
+
+  it('clears the alert and greets when a blank submission is corrected', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor submitted a blank Name field and sees the alert
+    render(<GreetingScreen />)
+    await submitABlankNameAndSeeTheAlert(user)
+
+    // When the visitor types "Grace" into the Name field. The recovery path is a primary path,
+    // so it is walked with no pointer at all: Shift+Tab back from the submit control to the
+    // field, type, then Tab forward and activate. A keyboard-only visitor must be able to
+    // complete the recovery, and a suite that only ever clicks could not notice if that broke.
+    await user.tab({ shift: true })
+    await user.keyboard('Grace')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+    // And the visitor activates the submit control
+    await user.tab()
+    await user.keyboard('{Enter}')
+
+    // Then the greeting reads "Hello, Grace"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Grace'), verbatim)
+    // And no element with role "alert" is present
+    expect(screen.queryByRole('alert')).toBeNull()
+    // And the Name field no longer has an aria-describedby reference to the alert. The
+    // attribute must be gone, not emptied: an empty aria-describedby is still a (dangling)
+    // reference, and the field of a submission that just succeeded must have no description
+    // at all (mockup state matrix row 11).
+    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
+  })
+
+  // (po-proposed behaviour, unconfirmed — see VERIFY-WITH-HUMAN.md VH-05.) The alert clears on
+  // the next submission, not on the next keystroke: everything else in this feature is
+  // submit-driven, and a message that vanishes mid-correction takes the explanation away while
+  // the visitor is still acting on it. Reversing this is one condition in the component and
+  // this one test.
+  it('keeps the alert on screen while the visitor types, until they submit again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor submitted a blank Name field and sees the alert
+    render(<GreetingScreen />)
+    await submitABlankNameAndSeeTheAlert(user)
+
+    // When the visitor types "Grace" into the Name field — and does not submit
+    await user.tab({ shift: true })
+    await user.keyboard('Grace')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+
+    // Then an alert still reads "Please enter your name to be greeted."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // And the Name field's aria-describedby attribute still references the element with role
+    // "alert" — the association survives the keystrokes too, not just the element.
+    const alert = screen.getByRole('alert')
+    expect(alert.id).not.toBe('')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute(
+      'aria-describedby',
+      alert.id,
+    )
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(ALERT_TEXT)
+  })
+
+  it('still shows the alert when the retry is whitespace-only', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor submitted a blank Name field and sees the alert
+    render(<GreetingScreen />)
+    await submitABlankNameAndSeeTheAlert(user)
+
+    // When the visitor types "   " into the Name field
+    await user.tab({ shift: true })
+    await user.keyboard('   ')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('   ')
+    // And the visitor activates the submit control
+    await user.tab()
+    await user.keyboard('{Enter}')
+
+    // Then an alert reads "Please enter your name to be greeted."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // And the status region is present and contains no text — a failing retry never puts a
+    // greeting on screen, and never touches the region either (mockup row 12's scoping rule).
+    expect(screen.getByRole('status')).toHaveTextContent('')
   })
 })
