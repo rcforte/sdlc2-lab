@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { greetingText, newVisit, submit, type Visit } from './visit'
+import { alertText, greetingText, newVisit, submit, type Visit } from './visit'
 
 const NAME_FIELD_ID = 'name'
+const ALERT_ID = 'name-error'
 
 export function GreetingScreen() {
   // Two component-local hooks, both dying at unmount: the visitor's draft (INV-6c) and the
@@ -11,6 +12,11 @@ export function GreetingScreen() {
   const [visit, setVisit] = useState<Visit>(newVisit)
 
   const greetVisitor = () => setVisit((current) => submit(current, rawName))
+
+  // The domain decides whether there is a message and what it says (INV-5b); this component
+  // decides only whether an element exists (P2) and what it is linked to (P3). Both read this
+  // one expression, so they cannot disagree.
+  const alert = alertText(visit)
 
   return (
     <>
@@ -22,7 +28,22 @@ export function GreetingScreen() {
           type="text"
           value={rawName}
           onChange={(event) => setRawName(event.target.value)}
+          // P3: undefined removes the attribute entirely rather than emptying it, so the field
+          // is never described by an alert that is not on screen.
+          aria-describedby={alert !== null ? ALERT_ID : undefined}
         />
+        {/* P2: the alert exists only while there is an error — unlike the status region, it is
+            absent from the DOM otherwise. It sits beside the field it describes, and carries its
+            meaning in words alone: no colour, no icon, nothing a greyscale or forced-colours
+            visitor would lose (VH-07). P5: the text sits in one child keyed by blankCount, so
+            failing the same way twice replaces that node and the alert fires again instead of
+            falling silent, while the <p> keeps the id aria-describedby points at. No aria-live
+            here — role="alert" is already a live region, and both would double-announce. */}
+        {alert !== null && (
+          <p role="alert" id={ALERT_ID}>
+            <span key={visit.blankCount}>{alert}</span>
+          </p>
+        )}
       </div>
       {/* Plain button rather than a native <form>: VH-01 leaves that open and no scenario
           asserts Enter-to-submit either way. type="button" is harmless outside a form and

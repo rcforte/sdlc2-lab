@@ -6,10 +6,16 @@ import { GreetingScreen } from './GreetingScreen'
 // normalization turned off, because jest-dom's default (collapse whitespace, match as a
 // substring) would report "Hello,  Ada " and "Hello, \tAda\t" as reading "Hello, Ada" —
 // i.e. an implementation that never trims would pass the two scenarios that exist solely to
-// catch it (VH-08). Every string passed to `exactly` below is a plain literal, so there is no
-// regex metacharacter to escape.
-const exactly = (text: string) => new RegExp(`^${text}$`)
+// catch it (VH-08). The literals are escaped before anchoring: the alert's text ends in a
+// full stop, and an unescaped "." would match any character there.
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const exactly = (text: string) => new RegExp(`^${escaped(text)}$`)
 const verbatim = { normalizeWhitespace: false }
+
+// The alert's fixed wording (feature.md Contract vocabulary; po-proposed, VH-03), copied from
+// the Gherkin rather than imported from src/visit.ts on purpose — a scenario that imported the
+// constant would pass whatever the constant happened to say.
+const ALERT_TEXT = 'Please enter your name to be greeted.'
 
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
@@ -101,5 +107,108 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Grace'), verbatim)
     // And "Hello, Ada" is no longer shown
     expect(screen.queryByText('Hello, Ada')).toBeNull()
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // Issue 02 — Be told when the name is blank. One acceptance test per Gherkin scenario.
+  // ---------------------------------------------------------------------------------------
+
+  it('shows an alert and no greeting when an empty Name field is submitted', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the Name field is empty
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+
+    // When the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the status region is present and contains no text
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And an alert reads "Please enter your name to be greeted."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+  })
+
+  it('treats a whitespace-only name as blank', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+
+    // When the visitor types "   " into the Name field
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), '   ')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the status region is present and contains no text
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And an alert reads "Please enter your name to be greeted."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+  })
+
+  it('treats a tab-only name as blank too', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+
+    // When the visitor enters "\t" (a single tab character) into the Name field. A literal Tab
+    // keystroke moves focus rather than inserting a character, so the tab is pasted into the
+    // focused field; this scenario exists to fail an implementation that strips only the space
+    // character (VH-08), so the field really must hold U+0009.
+    await user.tab()
+    await user.paste('\t')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('\t')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the status region is present and contains no text
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And an alert reads "Please enter your name to be greeted."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+  })
+
+  it('leaves an existing greeting alone when a blank submission follows it', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Hello, Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And an alert reads "Please enter your name to be greeted."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+  })
+
+  it('ties the alert to the Name field', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the Name field is empty
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+
+    // When the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the Name field's aria-describedby attribute references the element with role "alert"
+    const alert = screen.getByRole('alert')
+    expect(alert.id).not.toBe('')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute(
+      'aria-describedby',
+      alert.id,
+    )
+    // …and the reference resolves, so the message really is the field's description: the
+    // "error is text, not colour" decision's testable half (VH-07).
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(ALERT_TEXT)
   })
 })

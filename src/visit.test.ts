@@ -1,4 +1,4 @@
-import { greetingText, newVisit, submit } from './visit'
+import { ALERT_MESSAGE, alertText, greetingText, isBlank, newVisit, submit } from './visit'
 import visitSource from './visit.ts?raw'
 
 // INV-6b's "no ambient browser global" half is NOT implied by an empty import list: tsconfig
@@ -33,6 +33,58 @@ describe('Visit', () => {
     expect(greetingText(submit(newVisit, '\tAda\t'))).toBe('Hello, Ada')
   })
 
+  // INV-1 / VH-08: blank means blank after String.prototype.trim() — every kind of leading and
+  // trailing JavaScript whitespace, not the space character alone. This one predicate is the
+  // only place blankness is decided; no component ever tests it for itself.
+  it('is blank when the name is empty or whitespace only, whatever the whitespace (INV-1)', () => {
+    expect(isBlank('')).toBe(true)
+    expect(isBlank('   ')).toBe(true)
+    expect(isBlank('\t')).toBe(true)
+    expect(isBlank('\r\n\v\f  ')).toBe(true)
+
+    expect(isBlank('Ada')).toBe(false)
+    expect(isBlank(' Ada ')).toBe(false)
+    expect(isBlank('\tAda\t')).toBe(false)
+  })
+
+  // INV-5b: alert text exists iff the most recent submission was blank. alertText is the sole
+  // reader of that flag and the sole producer of the message, so the component never inspects
+  // the flag and never types the copy.
+  it('has no alert text before anything is submitted (INV-5b)', () => {
+    expect(alertText(newVisit)).toBeNull()
+  })
+
+  it('reports the blank-name message after a blank submission (INV-5b)', () => {
+    expect(alertText(submit(newVisit, ''))).toBe(ALERT_MESSAGE)
+    expect(alertText(submit(newVisit, '   '))).toBe(ALERT_MESSAGE)
+    expect(alertText(submit(newVisit, '\t'))).toBe(ALERT_MESSAGE)
+  })
+
+  // INV-5a arrives whole (ADR-0007): both branches assign the flag, so it always describes the
+  // most recent submission. Writing only the blank branch here would ship a slice in which an
+  // alert lingers beside a fresh greeting, still aria-describedby-linked to a field that just
+  // succeeded — the defect slice 03 would then be "discovering".
+  it('clears the alert on the next successful submission (INV-5a)', () => {
+    const rejected = submit(newVisit, '   ')
+
+    expect(alertText(submit(rejected, 'Grace'))).toBeNull()
+  })
+
+  // INV-4 / R4: a blank submission carries greetedName through untouched, so an existing
+  // greeting is left exactly as it was rather than recomputed or cleared.
+  it('leaves an existing greeting untouched when a blank submission is rejected (INV-4)', () => {
+    const greeted = submit(newVisit, 'Ada')
+
+    expect(greetingText(submit(greeted, '   '))).toBe('Hello, Ada')
+  })
+
+  // INV-2, non-blank half: greetedName is never assigned a blank value, so the screen can never
+  // reach "Hello, " with nothing after it.
+  it('never greets a blank name (INV-2)', () => {
+    expect(greetingText(submit(newVisit, ''))).toBe('')
+    expect(greetingText(submit(newVisit, ' \t '))).toBe('')
+  })
+
   // R9 / INV-8a: without this the aggregate cannot tell a second identical submit from no
   // submit at all, the rendered text never changes, and the live region stays silent on the
   // visitor's second click. The count is identity, never a quantity to display.
@@ -42,5 +94,19 @@ describe('Visit', () => {
 
     expect(greetingText(twice)).toBe('Hello, Ada') // same text …
     expect(twice.greetingCount).toBe(2) // … different value
+  })
+
+  // R9 / INV-8b, the alert's half of the same rule, plus its scoping half: a failing submit
+  // renews the alert and leaves the greeting count alone, so the status region is never
+  // force-mutated to re-announce a greeting that this submission did not produce (R4).
+  // No scenario can see this — jsdom implements no live-region announcement — so the domain
+  // half is pinned here and the announcement itself is a human check (VH-10).
+  it('counts every blank rejection and leaves the greeting count alone (INV-8b, R4)', () => {
+    const greeted = submit(newVisit, 'Ada')
+    const blank2 = submit(submit(greeted, '   '), '\t')
+
+    expect(blank2.blankCount).toBe(2)
+    expect(blank2.greetingCount).toBe(greeted.greetingCount)
+    expect(greetingText(blank2)).toBe('Hello, Ada')
   })
 })
