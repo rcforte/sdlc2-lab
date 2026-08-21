@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- round 5 fix (UX-A11Y): without a viewport meta tag a real mobile browser lays this
+     document out at the ~980px desktop default and scales down, so the 320px reflow this
+     spec claims to demonstrate (box-sizing, min(260px,100%), .table-scroll — see section 6,
+     Responsive) is never actually exercised on a device. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greet the visitor by name — mockup</title>
+<style>
+  body {
+    font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+  }
+  h1 {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+  p.intro {
+    color: #444;
+    max-width: 60ch;
+    margin: 0 0 2rem;
+  }
+  .story {
+    max-width: 640px;
+    margin: 0 auto 2.5rem;
+  }
+  .story h2 {
+    font-size: 1rem;
+    margin: 0 0 0.25rem;
+  }
+  .story .caption {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+  .screen {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.5rem;
+    /* round 4 fix (UX-A11Y, reflow): border-box so min-width below includes padding/border
+       instead of adding to it — without this the drawn card cannot shrink to fit a 320px
+       viewport and this document would contradict its own reflow claim (section 6). */
+    box-sizing: border-box;
+  }
+  .screen h1 {
+    font-size: 0.95rem;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 0.75rem;
+    margin: 0 0 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-size: 1rem;
+    /* round 5 fix (UX-A11Y): #999 on #fff measured ~2.85:1, below the 3:1 WCAG 1.4.11
+       non-text-contrast floor for a UI component's visual boundary — the same 3:1 floor this
+       document invokes for focus indicators below. #595959 (already this file's normative grey,
+       used for captions and "n/a" cells) measures ~7:1, comfortably clearing it. */
+    border: 1px solid #595959;
+    border-radius: 3px;
+  }
+  /* round 5 fix (UX-A11Y): "visible focus" was asserted in section 6 but nowhere drawn — every
+     other section-6 requirement (target size, contrast) got both a CSS demonstration and a
+     normative token; focus now gets the same treatment. Hue is still frontend-design's call —
+     only the ring's structure (present, 2px, offset, meets the 3:1 non-text floor via this
+     file's #1a1a1a-family greys) is fixed here. */
+  input[type="text"]:focus-visible,
+  button:focus-visible {
+    outline: var(--focus-ring-width, 2px) solid #1a1a1a;
+    outline-offset: var(--focus-ring-offset, 2px);
+  }
+  .field-row {
+    margin-bottom: 0.75rem;
+  }
+  button {
+    padding: 0.5rem 1.25rem;
+    font-size: 1rem;
+    border: 1px solid #333;
+    background: #eee;
+    border-radius: 3px;
+    cursor: pointer;
+    /* round 4 fix (UX-A11Y): WCAG 2.5.5 target size — the drawn control now demonstrates the
+       >=44x44px touch target claimed in section 6, Responsive, instead of asserting a target the
+       drawing itself missed. Normative token for frontend-design: --control-min-target: 44px. */
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .error {
+    font-size: 0.9rem;
+    margin-top: 0.35rem;
+    border-left: 3px solid #999;
+    padding-left: 0.5rem;
+    /* round 3 fix (UX-A11Y): same wrap contract as .greeting — see state matrix row 5 */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  .greeting {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1.1rem;
+    /* round 3 fix (UX-A11Y): a 300+ character unbroken name must wrap, never force
+       page-level horizontal scroll and never be truncated — see state matrix row 5 */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  /* round 3 fix (UX-STATE row 1): decided — the empty status region is visually
+     COLLAPSED (zero border, zero reserved space), not a reserved dashed box. It occupies no
+     visual footprint and nothing sits inside it; it becomes the normal bordered box above only
+     once it holds text. This resolves the "reserved vs collapsed" question VH-04 left open for
+     a later node — this round owns and decides it. */
+  .greeting.empty {
+    border: none;
+    min-height: 0;
+    padding: 0;
+    margin-top: 0.5rem;
+  }
+  .region-note {
+    font-size: 0.75rem;
+    /* round 3 fix (UX-A11Y): #777 on #fff measured ~4.48:1, below the 4.5:1 this document
+       itself requires for small text. #595959 on #fff measures ~7:1. This is the one hex value
+       this spec's own chrome invents (see section 6, Contrast, for the full disclosure). */
+    color: #595959;
+    margin: 0.25rem 0 0;
+  }
+  .step {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #666;
+    margin: 0 0 0.5rem;
+  }
+  .before-after {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .before-after .screen {
+    flex: 1;
+    /* round 4 fix (UX-A11Y, reflow): was a bare 260px, which — combined with the .screen padding/
+       border now folded in via box-sizing above and this page's 2rem body padding — forced a
+       ~374px minimum page width and broke the 320px no-horizontal-scroll claim in section 6. The
+       min() form yields to the containing block below 260px so a narrow viewport gets one column
+       per row instead of an overflow. */
+    min-width: min(260px, 100%);
+  }
+  .before-after .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    /* round 4 fix (UX-A11Y): #888 on #fff measured ~3.54:1, below the 4.5:1 this document itself
+       requires for small text, and this label is the sole non-colour signal for several drawn
+       states (e.g. "Typing"). #595959 measures ~7:1 — see section 6, Contrast. */
+    color: #595959;
+    margin-bottom: 0.35rem;
+  }
+  /* --- UX experience spec additions (ux node, round 1) --- */
+  .ux-spec {
+    max-width: 900px;
+    margin: 0 auto 3rem;
+  }
+  .ux-spec h2 {
+    font-size: 1.2rem;
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #ccc;
+  }
+  .ux-spec h3 {
+    font-size: 0.95rem;
+    margin: 1.5rem 0 0.5rem;
+  }
+  .ux-spec p, .ux-spec li {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #333;
+  }
+  .flow-diagram {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    line-height: 1.3;
+    white-space: pre;
+  }
+  table.state-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    background: #fff;
+  }
+  table.state-matrix caption {
+    text-align: left;
+    font-size: 0.8rem;
+    color: #555;
+    margin-bottom: 0.4rem;
+  }
+  table.state-matrix th, table.state-matrix td {
+    border: 1px solid #ccc;
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.state-matrix th {
+    background: #eee;
+  }
+  table.state-matrix td.na {
+    /* round 3 fix (UX-A11Y): #888 on #fff measured ~3.5:1, below 4.5:1. #595959 measures ~7:1. */
+    color: #595959;
+    font-style: italic;
+  }
+  /* round 4 fix (UX-A11Y, reflow): the 8-column matrix has no shrink mechanism of its own, unlike
+     .flow-diagram which already carries overflow-x: auto. Wrap it (see markup below) so a narrow
+     viewport scrolls the table horizontally inside its own box instead of the page scrolling. */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  .nav-model {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+  }
+  .ac-tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: bold;
+    background: #eef;
+    /* round 4 fix (UX-A11Y): an explicit colour, not inherited — these chips sit inside
+       .before-after .label (#595959, ~7:1 on white, but only ~5.7:1 on this chip's #eef
+       background) and inside table cells with other inherited colours. #1a1a1a on #eef measures
+       well over 15:1, comfortably clearing 4.5:1 regardless of where the chip is used. */
+    color: #1a1a1a;
+    border: 1px solid #99c;
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    margin-left: 0.4rem;
+    white-space: nowrap;
+  }
+  .variant-note {
+    background: #fff;
+    border: 1px dashed #999;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+  }
+  .variant-note table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+    font-size: 0.78rem;
+  }
+  .variant-note th, .variant-note td {
+    border: 1px solid #ddd;
+    padding: 0.3rem 0.5rem;
+    text-align: left;
+  }
+  /* round 3 fix (UX-A11Y): the yellow field tint that used to live here was a colour-only
+     signal for the draft/typing state, contradicting this document's own "never colour alone"
+     rule (section 6) and its intro claim of colourless chrome. Removed. The typing state is
+     distinguished only by its text label ("Typing — draft, not yet submitted", already present
+     on every typing screen below) — remove all colour from this document and no information is
+     lost, which is the VH-07 human check this spec must itself pass. */
+</style>
+</head>
+<body>
+
+<h1>Greet the visitor by name — mockup</h1>
+<p class="intro">
+  One screen: a labelled Name field, a submit control ("Greet me"), a greeting
+  (<code>role="status"</code>), and an alert (<code>role="alert"</code>) when the name is blank.
+  Every block below is the <em>same</em> screen shown at a different state, one per story's
+  happy path, each carrying the existing "sdlc2 lab" heading that Story 1's acceptance criteria
+  require to still be shown once the greeting screen's controls are added alongside it. The
+  alert is text only — no colour-only signal is used anywhere in this mockup, per the feature's
+  "error is text, not colour" decision (the human check for that constraint is
+  VERIFY-WITH-HUMAN.md VH-07); the neutral borders on the error and greeting blocks
+  below are lo-fi structural chrome only, not a colour system or visual design (see Out of scope
+  in feature.md — this is a behaviour slice). The two regions behave differently when they have
+  nothing to say, and the drawings below follow that exactly: the <strong>status region is always
+  present</strong> in the DOM and simply holds no text — drawn, per the round 3 decision in
+  section 4 (state matrix row 1), as a <strong>visually collapsed</strong> box with zero border
+  and zero reserved space (not a dashed placeholder), with the explanatory caption <em>outside</em>
+  it so the region itself really is textless — because a live region created at the moment its
+  text arrives is unreliably announced; the <strong>alert is absent
+  altogether</strong> when there is no error, matching "no element with role &quot;alert&quot; is
+  present" (see feature.md, Contract vocabulary, and VERIFY-WITH-HUMAN.md VH-04).
+  <strong>Correction (round 5, UX-STATE):</strong> trimming (" Ada " or a tab-padded "Ada"
+  greeting <em>Hello, Ada</em>) does <strong>not</strong> produce exactly the plain "Ada" screen
+  below — Story1-S3 requires the Name field to keep the raw, untrimmed value while only the
+  greeting is trimmed, so the field and the greeting genuinely diverge. That divergence is drawn
+  as its own variant in Story 1 below (state matrix row 4, tagged Story1-S3), because it is
+  precisely the state a developer gets wrong by writing the trimmed value back into the field. The
+  submit
+  control is drawn here as a plain button, outside a <code>&lt;form&gt;</code>, purely as a lo-fi
+  drawing choice — whether it belongs inside a <code>&lt;form&gt;</code> (which would also give
+  Enter-to-submit) is an open question for a human, not a constraint of this mockup or this
+  slice's acceptance criteria (see feature.md, Out of scope, and VERIFY-WITH-HUMAN.md VH-01).
+</p>
+
+<!-- ============================================================ -->
+<!-- UX experience spec (ux node, round 1) — extends this file in  -->
+<!-- place; every existing story block below is preserved unchanged -->
+<!-- ============================================================ -->
+<section class="ux-spec" aria-labelledby="ux-spec-heading">
+<h2 id="ux-spec-heading">UX experience spec</h2>
+
+<h3>1. Experience summary</h3>
+<p>
+  <strong>Actor:</strong> the Visitor (feature.md Ubiquitous language — no account, no session,
+  no identity beyond the text they type). <strong>Job-to-be-done:</strong> "make this screen
+  respond to me, not to everyone identically." <strong>Entry:</strong> any load of the single
+  route (see Information architecture below) — always the same clean, empty screen, whether it is
+  the very first visit or a later one (Story 4). <strong>Exit:</strong> there is no exit inside
+  this feature — the visitor either sees a greeting and may repeat the loop with a new name, or
+  leaves the tab; no navigation away is in scope. <strong>Success metric:</strong> the visitor
+  reaches <code>Hello, &lt;name&gt;</code> in the status region using only the field's own label
+  and the button's own name — zero instructional copy required anywhere on the screen.
+</p>
+
+<h3>2. Primary flow — happy path and recovery</h3>
+<p>
+  Every state below is reachable from ARRIVE and every error state has a drawn way out; there is
+  no dead end. <strong>Round 4 correction (UX-FLOW):</strong> the boxed ASCII diagram this section
+  used through round 3 drew unequal box widths per state (the checker measured, e.g., a
+  68-column top border over a 17-column body on the SUBMIT box), which is exactly the "which
+  edges enter/leave which box" information a flow diagram exists to carry, and prose could not fix
+  that without a full redraw that risks drifting again. It is replaced below with five short state
+  descriptions plus an explicit transition table — every row is <code>from state, trigger, to
+  state, AC</code> — which cannot go out of visual alignment the way nested box-drawing can.
+</p>
+<p>
+  <strong>States:</strong> <strong>ARRIVE</strong> (Name field empty, status region present with
+  no text, alert absent) &middot; <strong>TYPING</strong> (Name field holds a draft value; status
+  region and alert both unchanged from before typing began — no AC forces validation here on
+  purpose, submit-driven only, see VH-05) &middot; <strong>SUBMIT</strong> (momentary — the single
+  synchronous branch point every "activates the submit control" step passes through)
+  &middot; <strong>SUCCESS</strong> (status region reads "Hello, &lt;name&gt;"; alert absent; Name
+  field keeps the raw typed value) &middot; <strong>ERROR</strong> (status region unchanged —
+  empty, or a prior greeting left exactly as it was; alert reads "Please enter your name to be
+  greeted."; Name field's <code>aria-describedby</code> now references the alert).
+</p>
+<!-- round 5 fix (UX-A11Y, reflow): only the section-4 matrix was wrapped in round 4; this table's
+     cells carry unbreakable tokens ("aria-describedby", "Story2-S1's") across four columns, which
+     forces the page-level horizontal scrollbar section 6 declares impossible at 320px. Same fix
+     as section 4: wrap in .table-scroll so the table scrolls inside its own box. -->
+<div class="table-scroll">
+<table class="state-matrix">
+<caption>Every transition in the flow above. "Trigger" is always something the visitor does; there
+  is no state this table cannot reach or leave.</caption>
+<thead><tr><th>From</th><th>Trigger</th><th>To</th><th>AC / note</th></tr></thead>
+<tbody>
+<tr><td>ARRIVE</td><td>visitor types (1..n characters, any content)</td><td>TYPING</td><td>—</td></tr>
+<tr><td>ARRIVE</td><td>activates "Greet me" directly, with <strong>zero keystrokes</strong> (field
+  stays empty; TYPING is skipped entirely)</td><td>SUBMIT</td><td>Story2-S1's literal path</td></tr>
+<tr><td>TYPING</td><td>activates "Greet me" &mdash; <strong>the one primary action on
+  screen</strong></td><td>SUBMIT</td><td>every story's happy path</td></tr>
+<tr><td>SUBMIT</td><td>trimmed value is non-empty</td><td>SUCCESS</td><td>Story1 (all 6 scenarios)</td></tr>
+<tr><td>SUBMIT</td><td>trimmed value is blank</td><td>ERROR</td><td>Story2 (all 5 scenarios)</td></tr>
+<tr><td>SUCCESS</td><td>submit a new name</td><td>SUBMIT (replaces the greeting in place)</td>
+  <td>Story1-S6 "replaces the previous greeting"</td></tr>
+<tr><td>SUCCESS</td><td>fresh visit (unmount/remount)</td><td>ARRIVE, clean slate</td><td>Story4-S1</td></tr>
+<tr><td>SUCCESS</td><td>visitor clears/edits the Name field after a greeting <em>(round 5,
+  UX-FLOW)</em></td><td>TYPING &mdash; the on-screen greeting is left exactly as it is until the
+  next submit replaces it</td><td>Story1-S6, first two steps ("the visitor clears the Name field
+  / And the visitor types...")</td></tr>
+<tr><td>ERROR</td><td>visitor types a correction</td><td>TYPING (post-error) &mdash; alert stays
+  present, still <code>aria-describedby</code>-linked, does not clear on keystroke</td>
+  <td>Story3-S2 (VH-05)</td></tr>
+<tr><td>ERROR</td><td>activates "Greet me" again, with <strong>zero keystrokes</strong> (same
+  failing outcome twice running)</td><td>SUBMIT</td><td>rows 12/12a of the state matrix, VH-09</td></tr>
+<tr><td>ERROR</td><td>fresh visit (unmount/remount)</td><td>ARRIVE, clean slate &mdash; alert and
+  any stale <code>aria-describedby</code> both gone</td><td>Story4-S2</td></tr>
+<tr><td>TYPING (post-error)</td><td>activates "Greet me" again</td><td>SUBMIT &mdash; back to
+  SUCCESS or ERROR again</td><td>Story3-S1 / Story3-S3</td></tr>
+<tr><td>TYPING (post-error)</td><td>fresh visit (unmount/remount) <em>(round 5, UX-FLOW,
+  symmetry)</em></td><td>ARRIVE, clean slate &mdash; alert and any stale
+  <code>aria-describedby</code> both gone, exactly as the ERROR&rarr;ARRIVE row above</td>
+  <td>Story4-S2 (a fresh visit can interrupt mid-correction, not only from ERROR itself)</td></tr>
+</tbody>
+</table>
+</div>
+<p>
+  <strong>Note (round 3, UX-FLOW):</strong> every "fresh visit" row above is a BROWSER-LEVEL action
+  (a reload or a new tab/window; proxied in tests by unmount+remount, see Contract vocabulary
+  "Fresh visit") — it is not an affordance this screen offers. feature.md's Out of scope explicitly
+  rules out a dedicated clear/reset control ("Editing or deleting a greeting via a dedicated
+  control"), so there is deliberately no in-app reset button anywhere in this design. See also the
+  state matrix caption and rows 4/13/14 below.
+</p>
+
+<h3>3. Information architecture &amp; navigation model</h3>
+<div class="nav-model">
+<ul>
+  <li><strong>Route:</strong> <code>/</code> — the Greeting screen. It is the only screen this
+    feature adds, and the only route in the app. No sub-routes, no modal routes, no query
+    parameters.</li>
+  <li><strong>Deep-linking:</strong> <code>/</code> is idempotent and stateless — every load
+    (first visit, reload, or a link shared with someone else) renders the identical ARRIVE state
+    (Story 4), because the greeting and the alert are derived, never stored (feature.md
+    Decisions). There is no URL that can land a visitor on a "broken" or half-drawn state; deep
+    links are trivially consistent by construction.</li>
+  <li><strong>"Where am I":</strong> the persistent, unchanging heading <code>&lt;h1&gt;sdlc2
+    lab&lt;/h1&gt;</code> is the one orientation cue in the app and it is identical across every
+    state in the matrix below — the one thing that never changes, so the visitor always has a
+    fixed anchor regardless of what the status region or alert are doing.</li>
+  <li><strong>Page title <em>(round 5, UX-IA)</em>:</strong> the document <code>&lt;title&gt;</code>
+    is the first orientation cue a screen-reader visitor or a visitor tab-switching between windows
+    gets (WCAG 2.4.2 Page Titled) — it is the browser-chrome half of "where am I", complementing the
+    in-page <code>&lt;h1&gt;</code> above. This mockup file's own <code>&lt;title&gt;</code> is
+    "Greet the visitor by name — mockup"; the shipped app's title is <code>App.tsx</code>'s
+    existing document title (unchanged by this feature — the greeting is derived state, never a
+    navigation, so there is nothing for the title to update to). Like the <code>&lt;h1&gt;</code>,
+    the page title is identical across every state in the matrix below; a state change here is
+    never a page change.</li>
+  <li><strong>"Where can I go":</strong> nowhere else. There is deliberately no nav bar, menu, or
+    secondary link — Out of scope rules out accounts and other screens, so there is genuinely
+    nowhere else to go. The single control on screen (the submit control) is the single primary
+    action everywhere; this is intentional one-action design, not an omission.</li>
+  <li><strong>Landmark structure:</strong> one <code>&lt;main&gt;</code> region wraps the Name
+    field, the submit control, the status region and (when present) the alert, so assistive-tech
+    users can jump straight to the one thing on the page with a single landmark navigation. The
+    shipped <code>App.tsx</code> already renders <code>&lt;main&gt;&lt;header&gt;&lt;h1&gt;sdlc2
+    lab&lt;/h1&gt;&lt;/header&gt;&lt;/main&gt;</code>; this feature adds the Name field, the
+    submit control, the status region, and (conditionally) the alert as <em>siblings of the
+    existing <code>&lt;header&gt;</code>, inside that same <code>&lt;main&gt;</code></em> — no
+    second landmark is introduced. Nesting <code>&lt;header&gt;</code> inside <code>&lt;main&gt;</code>
+    means it does not expose the implicit ARIA <code>banner</code> role (that role only applies to
+    a <code>&lt;header&gt;</code> that is not a descendant of <code>main</code>/<code>article</code>/
+    etc.) — that is already true of the shipped app today and this feature does not change it; the
+    heading order stays a single <code>&lt;h1&gt;</code>, no new heading level is introduced.</li>
+</ul>
+<div class="variant-note">
+<strong>Landmark structure, drawn (arrive state) — resolves "where am I" structurally, not just in prose:</strong>
+<pre class="flow-diagram" style="margin-top:0.5rem;">&lt;main&gt;
+  &lt;header&gt;&lt;h1&gt;sdlc2 lab&lt;/h1&gt;&lt;/header&gt;
+
+  &lt;div class="field-row"&gt;
+    &lt;label for="name"&gt;Name&lt;/label&gt;
+    &lt;input id="name" type="text" value="" /&gt;
+    &lt;!-- alert (role="alert"), only when present, goes here; then
+         aria-describedby="alert-id" is added to the input above --&gt;
+  &lt;/div&gt;
+
+  &lt;!-- &lt;form&gt; vs plain button is open — VH-01; either satisfies every AC --&gt;
+  &lt;button type="button"&gt;Greet me&lt;/button&gt;
+
+  &lt;div role="status" aria-live="polite"&gt;&lt;!-- empty until first greeting --&gt;&lt;/div&gt;
+&lt;/main&gt;</pre>
+<p style="margin:0.5rem 0 0; font-size:0.8rem;">Every drawn screen below (Stories 1-4) is this
+  same landmark shape at a different state; the illustrative <code>&lt;h1&gt;sdlc2 lab&lt;/h1&gt;</code>
+  atop each thumbnail stands in for the <code>&lt;main&gt;&lt;header&gt;&lt;h1&gt;</code> block
+  above, not a second, competing heading.</p>
+</div>
+</div>
+
+<h3>4. State matrix</h3>
+<div class="table-scroll">
+<table class="state-matrix">
+<caption>Every state the Greeting screen can be in. "Recovery / way out" is filled for every
+  non-terminal state — there is no state a visitor can get stuck in. "Start a fresh visit" (rows
+  4, 13, 14) is always a browser-level reload/new tab, never an in-app control — feature.md's Out
+  of scope rules out a dedicated clear/reset control, so no reset button exists in this design.
+  Rows 4a and 12a (round 3, UX-STATE) pin the required <em>outcome</em> — not the DOM mechanism,
+  which is left to the developer/frontend-design node, see VERIFY-WITH-HUMAN.md VH-09 — when a
+  resubmission produces a result identical to what was already on screen; see also section 5.</caption>
+<thead>
+<tr><th>#</th><th>Screen state</th><th>Trigger</th><th>Name field</th>
+<th>Status region (role="status")</th><th>Alert (role="alert")</th>
+<th>Recovery / way out</th><th>AC reference</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Arrive / empty</td><td>fresh visit or first load of <code>/</code></td>
+<td>empty</td>
+<td>present in the DOM (<code>role="status"</code> resolves), no text — and <strong>visually
+  collapsed</strong>: zero border, zero reserved space, nothing occupies it (round 3 decision;
+  see <code>.greeting.empty</code> in this file's CSS). It becomes the bordered box seen in row 4
+  only once it holds text.</td>
+<td>absent</td>
+<td>type a name, then submit</td><td>Story1-S2, Story4</td></tr>
+<tr><td>2</td><td>Typing / partial</td><td>visitor is typing, has not yet submitted</td>
+<td>draft value (any content, untrimmed)</td><td>unchanged from before typing began</td>
+<td>unchanged from before typing began</td>
+<td>submit to advance; deliberately no live validation before submit</td>
+<td>VH-05 (submit-driven only, not keystroke-driven)</td></tr>
+<tr><td>3</td><td>Loading</td><td class="na">not applicable — no async operation exists</td>
+<td class="na">—</td><td class="na">—</td><td class="na">—</td>
+<td class="na">n/a — transition from SUBMIT to its outcome is a single synchronous state
+  update, no network call, no spinner is ever shown</td>
+<td>feature.md Out of scope: "No backend, no localStorage, no analytics"</td></tr>
+<tr><td>4</td><td>Success / first greeting</td><td>submit with a non-blank name</td>
+<td>retains the raw typed value (only the greeting is trimmed)</td>
+<td>"Hello, &lt;name&gt;"</td><td>absent</td>
+<td>type a new name + submit to replace (row 4 again); or start a fresh visit — a browser-level
+  reload, not an in-app control (see caption) — to reset (row 13)</td>
+<td>Story1 (all 6 scenarios)</td></tr>
+<tr><td>4a</td><td>Success / same name resubmitted <em>(round 3, UX-STATE)</em></td>
+<td>submit the identical name again, unchanged, over an existing identical greeting</td>
+<td>unchanged</td>
+<td><strong>text is byte-identical to what was already shown</strong> ("Hello, Ada" again) — an
+  <code>aria-live="polite"</code> region only re-announces when its content actually mutates, so a
+  naive "set the same string" update risks being silent, giving the visitor no feedback that their
+  click registered. <strong>Required outcome</strong> (mechanism left to the developer/
+  frontend-design node — see VERIFY-WITH-HUMAN.md VH-09): every <em>successful</em> submit must be
+  perceivable to a screen-reader visitor, without the status region ever being removed, recreated,
+  or left textless once a greeting exists (that would violate the Status region contract in
+  feature.md's Contract vocabulary and VH-04). The alert is not involved in this row — there is no
+  alert on a successful submit, and it must not be touched.</td>
+<td>absent</td>
+<td>n/a — terminal per-submission state; loop back to row 4/4a on the next submit</td>
+<td>derived requirement (not a literal AC scenario) — closest cited AC is Story1-S6 "replaces
+  the previous greeting"; see VERIFY-WITH-HUMAN.md VH-09 for the full options/decision record.
+  <strong>Human-verified, not suite-asserted (round 5):</strong> this row's presence/text/
+  <code>aria-describedby</code> are byte-identical to row 4's, so a jsdom snapshot proves nothing
+  extra — the perceivability claim is checked at VERIFY time, see VH-10.</td></tr>
+<tr><td>5</td><td>Success / long name (over-limit does not exist) — <strong>drawn below,
+  Story 1</strong></td>
+<td>submit a 300+ character name</td><td>retains the full value, unmodified, no truncation</td>
+<td>"Hello, " + the full text, unmodified. <strong>Wrapping contract (round 3, UX-A11Y):</strong>
+  the unbroken run wraps (<code>overflow-wrap: anywhere; word-break: break-word</code>), is
+  never truncated, and never forces a page-level horizontal scrollbar, down to a 320px viewport
+  (WCAG 1.4.10 Reflow) — see section 6, Responsive.</td><td>absent</td>
+<td>same as row 4</td>
+<td>Story1 "no length limit" — <strong>this feature has no over-limit state by design</strong></td></tr>
+<tr><td>6</td><td>Error / blank field</td><td>submit with an empty field</td>
+<td>empty, and <code>aria-describedby</code> now references the alert's <code>id</code></td>
+<td>unchanged (empty, or a prior greeting untouched)</td>
+<td>"Please enter your name to be greeted."</td>
+<td>type a name and submit (row 11)</td><td>Story2-S1, Story2-S5 (<code>aria-describedby</code>
+  link — first appears here)</td></tr>
+<tr><td>7</td><td>Error / whitespace-only</td><td>submit "&nbsp;&nbsp;&nbsp;" (spaces)</td>
+<td>"&nbsp;&nbsp;&nbsp;" (visible, untrimmed)</td><td>unchanged</td>
+<td>same alert text</td><td>same as row 6</td><td>Story2-S2</td></tr>
+<tr><td>8</td><td>Error / tab-only</td><td>submit a single tab character</td>
+<td>contains a tab character (renders visually blank)</td><td>unchanged</td>
+<td>same alert text</td><td>same as row 6</td><td>Story2-S3</td></tr>
+<tr><td>9</td><td>Error / over an existing greeting</td>
+<td>blank submit after a prior greeting exists</td>
+<td>empty</td><td><strong>byte-for-byte unchanged</strong> — the prior greeting stays exactly as it
+  was; a failing submit never force-mutates the status region (see row 4a's scoping rule and
+  section 5) — a screen reader must not re-announce "Hello, &lt;name&gt;" as feedback for a
+  submission that failed</td>
+<td>same alert text</td><td>same as row 6</td><td>Story2-S4</td></tr>
+<tr><td>10</td><td>Error persists while typing a correction</td>
+<td>visitor types after seeing the alert, before resubmitting</td>
+<td>draft correction</td><td>unchanged</td>
+<td>still present, still <code>aria-describedby</code>-linked (does not clear on keystroke)</td>
+<td>submit again to clear it (row 11)</td><td>Story3-S2 (VH-05, po-proposed)</td></tr>
+<tr><td>11</td><td>Recovered / corrected</td>
+<td>resubmit with a valid name after an alert</td>
+<td>retains the corrected value</td><td>"Hello, &lt;corrected name&gt;"</td>
+<td>removed entirely, and the field's <code>aria-describedby</code> reference is removed too</td>
+<td>same as row 4</td><td>Story3-S1</td></tr>
+<tr><td>12</td><td>Retry still blank</td>
+<td>resubmit whitespace-only again after an alert</td>
+<td>"&nbsp;&nbsp;&nbsp;"</td><td>byte-for-byte unchanged (row 4a/row 9 scoping rule — a failing
+  submit never touches the status region)</td>
+<td>alert remains, with <strong>text identical to what was already showing</strong>. An assertive
+  live region whose child text does not mutate risks giving no signal that the second, failing
+  submit was even registered. <strong>Required outcome</strong> (mechanism left to the developer/
+  frontend-design node — see VERIFY-WITH-HUMAN.md VH-09): every <em>failing</em> submit must be
+  perceivable to a screen-reader visitor via the alert — see row 12a and section 5. The status
+  region is not involved in this row and must not be touched.</td>
+<td>same as row 6</td><td>Story3-S3</td></tr>
+<tr><td>12a</td><td>Retry still blank, resubmitted again <em>(round 3, UX-STATE; wording fixed
+  round 5)</em></td>
+<td>resubmit whitespace-only, N&ge;2, where this submission's failing outcome is identical to the
+  one already showing (the requirement is the identity of the outcome, not which submission number
+  it is)</td>
+<td>draft whitespace, unchanged</td><td>byte-for-byte unchanged (empty, or a prior greeting
+  untouched — same scoping rule as row 9)</td>
+<td>alert must still be perceivable with the identical text (same required outcome as row 12) — a
+  visitor using a screen reader must be able to tell the alert fired again on this failing submit,
+  not just the first — drawn below, Story 3</td>
+<td>type a non-blank name and submit (row 11)</td>
+<td>derived requirement, same class as row 4a — not a literal AC scenario, but required for
+  Story2/Story3's "an alert reads ..." assertions to remain true (perceivably, not just in the
+  DOM snapshot) across repeated identical failures; see VERIFY-WITH-HUMAN.md VH-09.
+  <strong>Human-verified, not suite-asserted (round 5):</strong> same reasoning as row 4a — this
+  row's presence/text are byte-identical to row 12's, so perceivability is checked at VERIFY time,
+  see VH-10.</td></tr>
+<tr><td>13</td><td>Reset after a greeting</td><td>fresh visit following a greeting</td>
+<td>empty</td><td>present, no text (visually collapsed, as row 1)</td><td>absent</td>
+<td>start over (row 1) — a browser-level reload/new tab, not an in-app control (see caption)</td>
+<td>Story4-S1</td></tr>
+<tr><td>14</td><td>Reset after an alert</td><td>fresh visit following an alert</td>
+<td>empty</td><td>present, no text (visually collapsed, as row 1)</td>
+<td>absent (and no stale <code>aria-describedby</code> reference)</td>
+<td>start over (row 1) — a browser-level reload/new tab, not an in-app control (see caption)</td>
+<td>Story4-S2</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5. Keyboard path &amp; focus order</h3>
+<p>
+  Tab order: <strong>Name field &rarr; Submit control</strong> — two stops, total, in every one
+  of the sixteen states above; no other focusable element ever appears, including in error
+  states (the alert itself is not focusable, matching the standard alert pattern of being
+  announced without requiring focus). Shift+Tab reverses the order. There is no keyboard trap in
+  any state. Focus is never moved programmatically by this feature: it stays wherever the visitor
+  put it — typically the submit control, immediately after activating it — because both the
+  status region (<code>aria-live="polite"</code>) and the alert (<code>role="alert"</code>,
+  implicitly assertive) announce their own content without needing a focus move. Moving focus on
+  every submit would disorient a visitor who submits repeatedly (row 4, row 11).
+</p>
+<p>
+  <strong>Round 3 correction, rescoped round 4 (UX-STATE):</strong> "announce their own content
+  without needing a focus move" is only reliably true when the live region's content actually
+  <em>changes</em> at the DOM level — a live region is announced on mutation, not on click. Two
+  cases in the state matrix above resubmit to an <em>identical</em> outcome (row 4a, submitting the
+  same name twice; row 12a, failing the same way twice in a row) and, for those, a naive re-render
+  that sets the same string risks being silent: nothing is announced, and a visitor who clicked
+  "Greet me" again has no way to tell their click registered. The required fix is pinned at rows 4a
+  and 12a as an <em>outcome</em>, scoped per result, not a blanket "mutate everything on every
+  submit": on a <strong>successful</strong> resubmission (row 4a) only the status region must be
+  made perceivable; on a <strong>failing</strong> resubmission (row 12a) only the alert must be —
+  the other region is left completely untouched in both cases (row 9's "byte-for-byte unchanged"
+  rule for a failing submit over an existing greeting is the reason this must not be a blanket
+  rule: force-mutating the status region on a failing submit would re-announce a stale "Hello,
+  &lt;name&gt;" as feedback for a submission that did not succeed, which is the opposite of what
+  happened). The DOM mechanism (e.g. a keyed re-render, an explicit visually-hidden counter,
+  content-swap timing) is deliberately left open for the developer/frontend-design node to choose —
+  it is not prescribed here, and is not itself an acceptance criterion. See
+  VERIFY-WITH-HUMAN.md VH-09 for the full options/decision record behind this requirement.
+</p>
+
+<h3>6. A11y &amp; responsive notes</h3>
+<ul>
+  <li><strong>Labels:</strong> the Name field always has an explicit <code>&lt;label for&gt;</code>
+    reading "Name"; the submit control always has the accessible name "Greet me" — identical
+    across all 16 states above; nothing about a control's presence or name ever depends on
+    state.</li>
+  <li><strong>Never colour alone:</strong> the alert's meaning is carried entirely by its text
+    and by the <code>aria-describedby</code> link to the Name field, never by colour or an icon
+    alone (feature.md Decisions; human check recorded at VERIFY-WITH-HUMAN.md VH-07). This
+    document uses neutral, colourless chrome throughout for exactly that reason — including its
+    own drawn variants: the earlier "typing" screens used a yellow field tint to mark the draft
+    state and that has been removed in round 3, because it was itself a colour-only signal inside
+    a document asserting there is none. The typing state is distinguished only by its screen's
+    text label ("Typing — draft, not yet submitted"); removing all colour from this mockup loses
+    no information, which is exactly the VH-07 human check restated against this spec itself.</li>
+  <li><strong>Programmatic association:</strong> <code>aria-describedby</code> on the Name field
+    points at the alert's <code>id</code> whenever the alert is present, and is removed entirely
+    — not merely emptied — whenever the alert is absent (row 11).</li>
+  <li><strong>Landmarks &amp; heading order:</strong> one <code>&lt;main&gt;</code>, one
+    <code>&lt;h1&gt;</code> ("sdlc2 lab") per real render of the app — the before/after screen
+    pairs drawn below are illustrative thumbnails of one screen at different moments, not literal
+    nested headings in the shipped DOM.</li>
+  <li><strong>Visible focus:</strong> every interactive element (Name field, submit control)
+    needs a visible <code>:focus-visible</code> indicator meeting WCAG AA non-text contrast
+    (3:1). <strong>Round 5 fix (UX-A11Y):</strong> this was asserted but not drawn, unlike the
+    neighbouring target-size requirement, which had both a CSS demonstration and a named token.
+    This file's CSS now demonstrates it too — <code>input[type="text"]:focus-visible,
+    button:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; }</code> — and names
+    two normative tokens for frontend-design: <code>--focus-ring-width: 2px</code> and
+    <code>--focus-ring-offset: 2px</code>. Only the hue is left open; the structure (present,
+    2px, offset, &ge;3:1) is fixed here.</li>
+  <li><strong>Contrast:</strong> body text and alert text need 4.5:1 contrast against their
+    background; the shipped UI's tokens/colours are frontend-design's domain, not fixed here.
+    <strong>Correction (round 3, extended round 4):</strong> this document's own spec chrome is not
+    colour-neutral — it invents one grey, <code>#595959</code>, used for the state-matrix "n/a"
+    cells, the region-note captions, and (round 4) the <code>.before-after .label</code> caption
+    that sits atop every one of the 16 drawn screens, all measured at ~7:1 against the white
+    table/card background (comfortably clearing 4.5:1 for small text). Round 4 also gave
+    <code>.ac-tag</code> an explicit <code>#1a1a1a</code> instead of letting it inherit — the chip
+    sits inside labels and table cells with several different inherited greys, and an inherited
+    colour is not a contrast guarantee. Every grey below 4.5:1 that this spec's own chrome used
+    (<code>#888</code> ~3.5:1/~3.09:1 depending on background, <code>#777</code> ~4.48:1, both
+    round 1/2) has now been replaced everywhere in this file, not only in the two spots fixed in
+    round 3. No other hex values are introduced by this spec; every drawn screen's body text
+    otherwise reuses the existing mockup's near-black <code>#1a1a1a</code> (already &gt;7:1).
+    <strong>Round 5 correction:</strong> the sweep above only covered text greys — this file's
+    original <code>input[type="text"]</code> border was <code>#999</code> on white (~2.85:1),
+    below the 3:1 WCAG 1.4.11 non-text-contrast floor for a UI component's drawn boundary. It is
+    now <code>#595959</code> (~7:1), the same normative grey already used elsewhere in this
+    spec.</li>
+  <li><strong>Responsive:</strong> the single-column form reflows to full viewport width down to
+    a <strong>320px</strong> viewport (WCAG 1.4.10 Reflow — corrected in round 3 from an earlier,
+    looser "~480px" claim) with <strong>no horizontal scroll at the page level, ever</strong>; the
+    submit control keeps a &ge;44&times;44px touch target at every breakpoint; no breakpoint
+    changes the IA — it is still one screen, one action, at every width. This is the layout
+    consequence of state matrix row 5 (a 300+ character unbroken name): the status region and the
+    alert both wrap long unbroken tokens (<code>overflow-wrap: anywhere; word-break:
+    break-word</code>, added to this file's CSS in round 3) and never truncate and never force a
+    horizontal scrollbar — the box grows taller, never wider than its container.
+    <strong>Correction (round 4):</strong> the 320px claim is the normative constraint the shipped
+    screen must meet, and round 3's own drawing failed it — <code>.before-after .screen</code> had
+    a bare <code>min-width: 260px</code> on a content-box element inside <code>2rem</code> of body
+    padding, which forced a page wider than 320px and than 375px. This file's CSS now demonstrates
+    the constraint rather than merely asserting it: <code>.screen</code> is <code>box-sizing:
+    border-box</code>, <code>.before-after .screen</code> uses <code>min-width: min(260px,
+    100%)</code> so it yields to a narrow viewport instead of overflowing it, and the 8-column
+    state matrix below is wrapped in a <code>.table-scroll</code> container (<code>overflow-x:
+    auto</code>) so it scrolls inside its own box the same way <code>.flow-diagram</code> already
+    did, rather than the page scrolling.</li>
+  <li><strong>Reduced motion:</strong> if frontend-design adds any transition for the alert or
+    greeting appearing, it must be skipped under <code>prefers-reduced-motion: reduce</code> — no
+    animation is required for the feature to function, so the default is no motion at all.</li>
+</ul>
+
+<h3>7. Handoff AC — the experience assertion for the RTL/Vitest test</h3>
+<p>
+  <strong>Round 3 correction (UX-MOCK):</strong> this repo's declared frontend seam is "React
+  Testing Library + user-event via Vitest (jsdom)" (project CLAUDE.md) and its own convention
+  explicitly rules Playwright out ("Deliberately not Spring Boot, Cucumber or Playwright" — the
+  graph tests node loops, not the rendered app in a real browser). The heading and the
+  keyboard-only clause below are corrected to name that seam, not Playwright.
+</p>
+<p>
+  A visitor opens the greeting screen cold and, with no instructions: (1) locates the one
+  labelled field and the one labelled action; (2) types a name, activates "Greet me", and sees
+  <code>Hello, &lt;name&gt;</code> appear in a way a screen reader also hears without any focus
+  move; (3) if they submit nothing (or only whitespace or tabs), see and hear exactly what to do
+  next, with anything already on screen left untouched; (4) correct the mistake and succeed in
+  the same visit, with no reload; (5) on a genuinely fresh visit, see the identical clean ARRIVE
+  state as on the very first visit — nothing lingers; (6) resubmitting to an identical outcome
+  (rows 4a, 12a) is still perceivable, not silent, <em>at VERIFY time by a human</em> (see the note
+  below — that half is not suite-observable). The test suite should assert this using
+  role-based queries only (<code>getByRole</code>, never a CSS selector), should walk every row
+  of the state matrix above by asserting the status region's and alert's exact presence/text/
+  <code>aria-describedby</code> for that row, and should prove the full happy path plus the full
+  recovery path are completable using only <code>@testing-library/user-event</code>'s keyboard
+  interactions under jsdom (<code>Tab</code>, <code>type</code>, <code>Tab</code>,
+  <code>{Enter}</code>/<code>{Space}</code> on the button) — never a pointer-only or
+  <code>fireEvent</code>-only shortcut for the primary path.
+</p>
+<p>
+  <strong>Correction (round 5, UX-STATE) — rows 4a and 12a are human-verified, not
+  suite-asserted:</strong> every other row's presence/text/<code>aria-describedby</code> is a
+  distinct, observable DOM shape a `getByRole`/`toHaveTextContent` assertion can walk. Rows 4a and
+  12a are different in kind: by construction their presence/text/<code>aria-describedby</code> are
+  byte-identical to rows 4 and 12 (that identity is the entire point of the row — the risk is a
+  silent re-render, not a wrong value), so a jsdom snapshot assertion of those same properties
+  proves nothing beyond what rows 4/12 already prove. jsdom does not implement live-region
+  announcement, so whether the second, identical outcome is actually perceived by a screen-reader
+  visitor is unobservable under this repo's declared seam — the same class of gap VH-06 already
+  named for storage writes. This requirement is therefore carried as a named human check at
+  VERIFY time (<code>VERIFY-WITH-HUMAN.md</code> VH-09, human check named in VH-10), not as a
+  thirteenth/fourteenth suite assertion alongside the sixteen state-matrix rows above.
+</p>
+
+</section>
+
+<!-- Story 1: SKELETON -->
+<section class="story">
+  <h2>Story 1 — Get greeted by name <em>(walking skeleton)</em></h2>
+  <p class="caption">
+    Before/after: on arrival the Name field is empty and the status region is already there,
+    holding no text; the visitor types "Ada", submits, and "Hello, Ada" lands in that same region.
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">On arrival — nothing submitted yet <span class="ac-tag">State matrix #1 &middot; Story1-S2</span></div>
+      <div class="field-row">
+        <label for="name-1a">Name</label>
+        <input type="text" id="name-1a" value="" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ status region: present, no text (no alert on screen at all)</p>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Typing — draft, not yet submitted <span class="ac-tag">State matrix #2</span></div>
+      <div class="field-row">
+        <label for="name-1t">Name</label>
+        <input type="text" id="name-1t" value="Ad" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ status/alert unchanged from before typing started — validation is
+        submit-driven only (VH-05), never on keystroke</p>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">After submitting "Ada" <span class="ac-tag">State matrix #4 &middot; Story1-S1 (skeleton)</span></div>
+      <div class="field-row">
+        <label for="name-1b">Name</label>
+        <input type="text" id="name-1b" value="Ada" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, Ada</div>
+    </div>
+  </div>
+
+  <p class="caption" style="margin-top:1.25rem;">
+    Round 3 addition — two variants the earlier drawing left undrawn (state matrix rows 5 and 4a),
+    both required by Story 1's acceptance criteria and by the general re-announce rule in
+    section 5:
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Long name, no length limit, no truncation
+        <span class="ac-tag">State matrix #5 &middot; Story1 "no length limit"</span></div>
+      <div class="field-row">
+        <label for="name-1c">Name</label>
+        <input type="text" id="name-1c" value="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA</div>
+      <p class="region-note">↑ the 300-character run wraps inside the status region
+        (<code>overflow-wrap: anywhere</code>) — never truncated, never a horizontal scrollbar,
+        down to a 320px viewport (section 6, Responsive)</p>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Same name resubmitted — must still be perceivable
+        <span class="ac-tag">State matrix #4a</span></div>
+      <div class="field-row">
+        <label for="name-1d">Name</label>
+        <input type="text" id="name-1d" value="Ada" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, Ada</div>
+      <p class="region-note">↑ visually identical to "After submitting 'Ada'" above — the text is
+        byte-identical, which is exactly the risk: a naive re-render risks being silent on this
+        submit. This successful resubmission must still be perceivable to a screen-reader visitor
+        (outcome only — mechanism left to the developer/frontend-design node, see
+        VERIFY-WITH-HUMAN.md VH-09). The alert is not involved — there is no alert on a successful
+        submit.</p>
+    </div>
+  </div>
+
+  <p class="caption" style="margin-top:1.25rem;">
+    Round 5 addition (UX-STATE) — the trimmed variant the intro previously (and wrongly) claimed
+    was identical to "After submitting 'Ada'" above. It is not: Story1-S3 requires the Name field
+    to keep the raw, untyped-corrected value while only the greeting is trimmed, so field and
+    greeting read differently on screen.
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Trimmed on submit — field keeps " Ada ", greeting reads "Hello, Ada"
+        <span class="ac-tag">State matrix #4 &middot; Story1-S3</span></div>
+      <div class="field-row">
+        <label for="name-1e">Name</label>
+        <input type="text" id="name-1e" value=" Ada " readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, Ada</div>
+      <p class="region-note">↑ the Name field retains the raw typed value <code>" Ada "</code>
+        (leading/trailing spaces, unchanged) — only the text that lands in the status region is
+        trimmed. A tab-padded name (Story1-S4, "\tAda\t") produces the identical divergence: field
+        keeps the tabs, greeting reads "Hello, Ada".</p>
+    </div>
+  </div>
+</section>
+
+<!-- Story 2: blank name alert -->
+<section class="story">
+  <h2>Story 2 — Be told when the name is blank</h2>
+  <p class="caption">
+    Two states: (A) submitting an empty Name field shows an alert and no greeting exists yet;
+    (B) submitting blank over an existing greeting shows the same alert but leaves the greeting
+    untouched.
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">A — empty field submitted, no prior greeting <span class="ac-tag">State matrix #6 &middot; Story2-S1</span></div>
+      <div class="field-row">
+        <label for="name-2a">Name</label>
+        <input type="text" id="name-2a" value="" aria-describedby="error-2a" readonly>
+        <div class="error" id="error-2a" role="alert">Please enter your name to be greeted.</div>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ status region: still present, still no text</p>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">B — blank resubmission, existing greeting untouched <span class="ac-tag">State matrix #9 &middot; Story2-S4</span></div>
+      <div class="field-row">
+        <label for="name-2b">Name</label>
+        <input type="text" id="name-2b" value="" aria-describedby="error-2b" readonly>
+        <div class="error" id="error-2b" role="alert">Please enter your name to be greeted.</div>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, Ada</div>
+    </div>
+  </div>
+  <div class="variant-note">
+    <strong>Blank-name variants (State matrix rows 6-8)</strong> — all three trigger the identical
+    alert screen drawn above; only the Name field's literal content differs, which is why they are
+    not drawn as separate full screens. Screens A and B above both already show
+    <code>aria-describedby="error-2a"</code>/<code>"error-2b"</code> on the Name field pointing at
+    the alert's <code>id</code> — that is Story2-S5, and it applies identically to all three
+    trigger values below, not only the empty-string case.
+    <!-- round 5 fix (UX-A11Y, reflow): same fix as sections 2 and 4 — wrap in .table-scroll so a
+         320px viewport scrolls this table inside its own box instead of the page. -->
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Trigger value</th><th>Name field shows</th><th>Alert</th><th>AC</th></tr></thead>
+      <tbody>
+        <tr><td><code>""</code> (empty)</td><td>empty</td><td>"Please enter your name to be greeted."</td><td>Story2-S1, Story2-S5</td></tr>
+        <tr><td><code>"   "</code> (3 spaces)</td><td><code>"   "</code> (visible, untrimmed)</td><td>same</td><td>Story2-S2, Story2-S5</td></tr>
+        <tr><td><code>"\t"</code> (single tab)</td><td>contains a tab character (visually blank)</td><td>same</td><td>Story2-S3, Story2-S5</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- Story 3: recover from alert -->
+<section class="story">
+  <h2>Story 3 — Recover from a blank-name alert</h2>
+  <p class="caption">
+    Before/after: the visitor saw the blank-name alert, then typed "Grace" and submitted — the
+    alert clears and the greeting appears.
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Before — alert showing <span class="ac-tag">State matrix #6 (setup)</span></div>
+      <div class="field-row">
+        <label for="name-3a">Name</label>
+        <input type="text" id="name-3a" value="" aria-describedby="error-3a" readonly>
+        <div class="error" id="error-3a" role="alert">Please enter your name to be greeted.</div>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ status region: present, no text</p>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Between — typing "Grace", alert still showing
+        <span class="ac-tag">State matrix #10 · VH-05</span></div>
+      <div class="field-row">
+        <label for="name-3m">Name</label>
+        <input type="text" id="name-3m" value="Grace" aria-describedby="error-3m" readonly>
+        <div class="error" id="error-3m" role="alert">Please enter your name to be greeted.</div>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ the alert deliberately does not clear on keystroke — it clears
+        only on the next submit (Story3-S2, VH-05, po-proposed)</p>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">After — corrected and submitted <span class="ac-tag">State matrix #11 &middot; Story3-S1</span></div>
+      <div class="field-row">
+        <label for="name-3b">Name</label>
+        <input type="text" id="name-3b" value="Grace" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, Grace</div>
+    </div>
+  </div>
+  <div class="variant-note">
+    <strong>Retry still blank (State matrix row 12, Story3-S3)</strong> — from the "Before — alert
+    showing" screen above, if the visitor instead retypes whitespace-only ("   ") and resubmits,
+    the screen is <em>visually</em> identical to "Before": Name field content, status region, and
+    alert text are all pixel-for-pixel the same. <strong>Round 3 correction (UX-STATE):</strong>
+    "visually unchanged" does not mean "nothing happened" — this second failing submit must still
+    be perceivable to a screen-reader visitor. If the alert element (or its text node) is left
+    completely untouched by this second submit, the assertive live region risks never re-firing,
+    and that visitor gets no signal their second click registered at all. <strong>Required outcome
+    (state matrix row 12a, mechanism left to the developer/frontend-design node — see
+    VERIFY-WITH-HUMAN.md VH-09):</strong> the alert must be perceivable on every failing submit,
+    even when the message string is byte-identical to what was already showing. This mirrors row
+    4a's requirement for the status region on a repeated success, scoped to the opposite outcome —
+    the status region is not touched by a failing submit (row 9). <strong>Round 4 addition:</strong>
+    per the same policy used for row 4a above (visual identity is exactly the risk worth drawing),
+    row 12a is drawn below rather than only described in prose.
+  </div>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Retry still blank, resubmitted again — must still be perceivable
+        <span class="ac-tag">State matrix #12 &amp; #12a</span></div>
+      <div class="field-row">
+        <label for="name-3c">Name</label>
+        <input type="text" id="name-3c" value="   " aria-describedby="error-3c" readonly>
+        <div class="error" id="error-3c" role="alert">Please enter your name to be greeted.</div>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ visually identical to "Before — alert showing" above — the alert
+        text is byte-identical, which is exactly the risk: a naive re-render risks being silent on
+        this submit. This failing resubmission must still be perceivable to a screen-reader
+        visitor (outcome only — mechanism left to the developer/frontend-design node, see
+        VERIFY-WITH-HUMAN.md VH-09). The status region is not involved — a failing submit never
+        touches it (row 9); it stays present and empty here exactly as it was before this submit.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Story 4: fresh visit starts clean -->
+<section class="story">
+  <h2>Story 4 — A fresh visit starts clean</h2>
+  <p class="caption">
+    Before/after: the visitor had been greeted "Hello, Ada", then started a fresh visit — the
+    Name field, greeting and alert are all back to the initial, empty state.
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Before the fresh visit <span class="ac-tag">State matrix #4 (setup)</span></div>
+      <div class="field-row">
+        <label for="name-4a">Name</label>
+        <input type="text" id="name-4a" value="Ada" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting" role="status" aria-live="polite">Hello, Ada</div>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">After the fresh visit <span class="ac-tag">State matrix #13 &middot; Story4-S1</span></div>
+      <div class="field-row">
+        <label for="name-4b">Name</label>
+        <input type="text" id="name-4b" value="" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ status region: present, no text — identical to the arrival state</p>
+    </div>
+  </div>
+  <p class="caption" style="margin-top:1.25rem;">
+    Second scenario for this story — Story4-S2 (starting from an alert instead of a greeting):
+  </p>
+  <div class="before-after">
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">Before the fresh visit — alert showing <span class="ac-tag">State matrix #6 (setup)</span></div>
+      <div class="field-row">
+        <label for="name-4c">Name</label>
+        <input type="text" id="name-4c" value="" aria-describedby="error-4c" readonly>
+        <div class="error" id="error-4c" role="alert">Please enter your name to be greeted.</div>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+    </div>
+    <div class="screen">
+      <h1>sdlc2 lab</h1>
+      <div class="label">After the fresh visit <span class="ac-tag">State matrix #14 &middot; Story4-S2</span></div>
+      <div class="field-row">
+        <label for="name-4d">Name</label>
+        <input type="text" id="name-4d" value="" readonly>
+      </div>
+      <button type="button">Greet me</button>
+      <div class="greeting empty" role="status" aria-live="polite"></div>
+      <p class="region-note">↑ status region: present, no text; no alert; no stale
+        aria-describedby — identical to the very first arrival (row 1 of the state matrix)</p>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
