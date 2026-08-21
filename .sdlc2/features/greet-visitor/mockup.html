@@ -542,7 +542,7 @@
 <tr><td>6</td><td>Error / blank field</td><td>submit with an empty field</td>
 <td>empty, and <code>aria-describedby</code> now references the alert's <code>id</code></td>
 <td>unchanged (empty, or a prior greeting untouched)</td>
-<td>"Please enter your name to be greeted."</td>
+<td>"Please enter your name."</td>
 <td>type a name and submit (row 11)</td><td>Story2-S1, Story2-S5 (<code>aria-describedby</code>
   link — first appears here)</td></tr>
 <tr><td>7</td><td>Error / whitespace-only</td><td>submit "&nbsp;&nbsp;&nbsp;" (spaces)</td>
@@ -881,7 +881,7 @@
       <div class="field-row">
         <label for="name-2a">Name</label>
         <input type="text" id="name-2a" value="" aria-describedby="error-2a" readonly>
-        <div class="error" id="error-2a" role="alert">Please enter your name to be greeted.</div>
+        <div class="error" id="error-2a" role="alert">Please enter your name.</div>
       </div>
       <button type="button">Greet me</button>
       <div class="greeting empty" role="status" aria-live="polite"></div>
@@ -893,7 +893,7 @@
       <div class="field-row">
         <label for="name-2b">Name</label>
         <input type="text" id="name-2b" value="" aria-describedby="error-2b" readonly>
-        <div class="error" id="error-2b" role="alert">Please enter your name to be greeted.</div>
+        <div class="error" id="error-2b" role="alert">Please enter your name.</div>
       </div>
       <button type="button">Greet me</button>
       <div class="greeting" role="status" aria-live="polite">Hello, Ada</div>
@@ -912,7 +912,7 @@
     <table>
       <thead><tr><th>Trigger value</th><th>Name field shows</th><th>Alert</th><th>AC</th></tr></thead>
       <tbody>
-        <tr><td><code>""</code> (empty)</td><td>empty</td><td>"Please enter your name to be greeted."</td><td>Story2-S1, Story2-S5</td></tr>
+        <tr><td><code>""</code> (empty)</td><td>empty</td><td>"Please enter your name."</td><td>Story2-S1, Story2-S5</td></tr>
         <tr><td><code>"   "</code> (3 spaces)</td><td><code>"   "</code> (visible, untrimmed)</td><td>same</td><td>Story2-S2, Story2-S5</td></tr>
         <tr><td><code>"\t"</code> (single tab)</td><td>contains a tab character (visually blank)</td><td>same</td><td>Story2-S3, Story2-S5</td></tr>
       </tbody>
@@ -935,7 +935,7 @@
       <div class="field-row">
         <label for="name-3a">Name</label>
         <input type="text" id="name-3a" value="" aria-describedby="error-3a" readonly>
-        <div class="error" id="error-3a" role="alert">Please enter your name to be greeted.</div>
+        <div class="error" id="error-3a" role="alert">Please enter your name.</div>
       </div>
       <button type="button">Greet me</button>
       <div class="greeting empty" role="status" aria-live="polite"></div>
@@ -948,7 +948,7 @@
       <div class="field-row">
         <label for="name-3m">Name</label>
         <input type="text" id="name-3m" value="Grace" aria-describedby="error-3m" readonly>
-        <div class="error" id="error-3m" role="alert">Please enter your name to be greeted.</div>
+        <div class="error" id="error-3m" role="alert">Please enter your name.</div>
       </div>
       <button type="button">Greet me</button>
       <div class="greeting empty" role="status" aria-live="polite"></div>
@@ -991,7 +991,7 @@
       <div class="field-row">
         <label for="name-3c">Name</label>
         <input type="text" id="name-3c" value="   " aria-describedby="error-3c" readonly>
-        <div class="error" id="error-3c" role="alert">Please enter your name to be greeted.</div>
+        <div class="error" id="error-3c" role="alert">Please enter your name.</div>
       </div>
       <button type="button">Greet me</button>
       <div class="greeting empty" role="status" aria-live="polite"></div>
@@ -1045,7 +1045,7 @@
       <div class="field-row">
         <label for="name-4c">Name</label>
         <input type="text" id="name-4c" value="" aria-describedby="error-4c" readonly>
-        <div class="error" id="error-4c" role="alert">Please enter your name to be greeted.</div>
+        <div class="error" id="error-4c" role="alert">Please enter your name.</div>
       </div>
       <button type="button">Greet me</button>
       <div class="greeting empty" role="status" aria-live="polite"></div>

@@ -16,8 +16,8 @@ must not be a dead end within the same visit.
 Note on the middle scenario ("The alert stays until the visitor submits again"): it fixes *when*
 the error clears — on the next submission, not on the next keystroke. The seed says only that "an
 error message explains what to do"; it does not say when the message goes away, so this is a
-`po`-proposed behaviour, unconfirmed, recorded in `VERIFY-WITH-HUMAN.md` **VH-05** (the Gherkin
-comment above the scenario carries the same flag). It is specified rather than left open because
+behaviour the `po` node proposed and a human has since confirmed — `VERIFY-WITH-HUMAN.md`
+**VH-05**, resolved in **VH-15** (the Gherkin comment above the scenario carries the same flag). It is specified rather than left open because
 everything else in this slice is submit-driven, and a message that vanishes mid-correction takes
 the explanation away while the visitor is still acting on it. If a human prefers "clear on input",
 that is one scenario and one condition to change.
@@ -38,17 +38,17 @@ Scenario: Correcting a blank submission clears the alert and shows the greeting
   And no element with role "alert" is present
   And the Name field no longer has an aria-describedby reference to the alert
 
-# (po-proposed behaviour, unconfirmed — see VERIFY-WITH-HUMAN.md VH-05)
+# (human-confirmed — see VERIFY-WITH-HUMAN.md VH-15)
 Scenario: The alert stays until the visitor submits again
   Given the visitor submitted a blank Name field and sees the alert
   When the visitor types "Grace" into the Name field
-  Then an alert still reads "Please enter your name to be greeted."
+  Then an alert still reads "Please enter your name."
   And the Name field's aria-describedby attribute still references the element with role "alert"
 
 Scenario: Retrying with a whitespace-only name still shows the alert
   Given the visitor submitted a blank Name field and sees the alert
   When the visitor types "   " into the Name field
   And the visitor activates the submit control
-  Then an alert reads "Please enter your name to be greeted."
+  Then an alert reads "Please enter your name."
   And the status region is present and contains no text
 ```

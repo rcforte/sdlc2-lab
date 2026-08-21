@@ -19,10 +19,9 @@ limit, replacing a previous greeting) — not a deepening in the story-map sense
 introduces a different outcome shape — so they ship in this same issue (see feature.md, Story
 map).
 
-Note: whether the Name field and submit control sit inside a native `<form>` (which gives
-Enter-to-submit for free) is an open, unconfirmed question — no scenario in this issue asserts
-Enter-to-submit behaviour in either direction, so either implementation satisfies every scenario
-below. See feature.md, Out of scope, and `VERIFY-WITH-HUMAN.md` VH-01.
+Note: the Name field and submit control sit inside a native `<form>`, so Enter in the field
+submits. That was VH-01's open question; a human resolved it in favour of adopting it, and a
+scenario now pins it. See `VERIFY-WITH-HUMAN.md` VH-01 and VH-15.
 
 Note on the status region: it is **present in the DOM from the first render and stays present**,
 holding no text until there is a greeting. "An element with role `status` is present / that

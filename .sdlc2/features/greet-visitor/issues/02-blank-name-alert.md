@@ -43,28 +43,28 @@ Scenario: Submitting an empty Name field shows an alert and no greeting
   And the Name field is empty
   When the visitor activates the submit control
   Then the status region is present and contains no text
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: Submitting a whitespace-only name is treated as blank
   Given the visitor is on the greeting screen
   When the visitor types "   " into the Name field
   And the visitor activates the submit control
   Then the status region is present and contains no text
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: A tab-only name is treated as blank too
   Given the visitor is on the greeting screen
   When the visitor enters "\t" (a single tab character) into the Name field
   And the visitor activates the submit control
   Then the status region is present and contains no text
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: A blank submission does not clear an existing greeting
   Given the visitor has already been greeted "Hello, Ada"
   When the visitor clears the Name field
   And the visitor activates the submit control
   Then the greeting still reads "Hello, Ada"
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: The alert is tied to the Name field
   Given the visitor is on the greeting screen

@@ -42,7 +42,7 @@ earlier round of the design was missing: the choice was made in prose, with no o
    - **It ships a user-visible accessibility defect for the length of a slice.** At the end of slice
      02, with all five of its scenarios green: a visitor submits blank, sees the alert, types
      "Grace", submits — the status region reads `Hello, Grace` **and** the alert *"Please enter your
-     name to be greeted."* is still on screen, with the Name field's `aria-describedby` still
+     name."* is still on screen, with the Name field's `aria-describedby` still
      pointing at it. A screen reader then announces an error as the description of a field that just
      succeeded. Slice boundaries are release boundaries in this graph; a slice is supposed to be
      shippable.

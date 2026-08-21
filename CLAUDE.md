@@ -19,6 +19,10 @@ adding signal.
   roles and accessible names, never implementation details.
 - `@testing-library/user-event` for interaction; `@testing-library/jest-dom` matchers.
 - Tests are the specification. No component ships without one.
+- One sanctioned exception to "through the rendered DOM": a **constraint test** — an assertion
+  that something *never* happens (no web-storage write, no network call). The absence it guards
+  has no rendered form, so it has to reach past the DOM. Say so in a comment at the test, and
+  keep it rare: everything expressible as behaviour stays behaviour.
 
 ## sdlc2
 

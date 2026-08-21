@@ -15,7 +15,7 @@ const verbatim = { normalizeWhitespace: false }
 // The alert's fixed wording (feature.md Contract vocabulary; po-proposed, VH-03), copied from
 // the Gherkin rather than imported from src/visit.ts on purpose — a scenario that imported the
 // constant would pass whatever the constant happened to say.
-const ALERT_TEXT = 'Please enter your name to be greeted.'
+const ALERT_TEXT = 'Please enter your name.'
 
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
@@ -126,7 +126,7 @@ describe('Greeting screen', () => {
 
     // Then the status region is present and contains no text
     expect(screen.getByRole('status')).toHaveTextContent('')
-    // And an alert reads "Please enter your name to be greeted."
+    // And an alert reads "Please enter your name."
     expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
   })
 
@@ -143,7 +143,7 @@ describe('Greeting screen', () => {
 
     // Then the status region is present and contains no text
     expect(screen.getByRole('status')).toHaveTextContent('')
-    // And an alert reads "Please enter your name to be greeted."
+    // And an alert reads "Please enter your name."
     expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
   })
 
@@ -165,7 +165,7 @@ describe('Greeting screen', () => {
 
     // Then the status region is present and contains no text
     expect(screen.getByRole('status')).toHaveTextContent('')
-    // And an alert reads "Please enter your name to be greeted."
+    // And an alert reads "Please enter your name."
     expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
   })
 
@@ -185,7 +185,7 @@ describe('Greeting screen', () => {
 
     // Then the greeting still reads "Hello, Ada"
     expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
-    // And an alert reads "Please enter your name to be greeted."
+    // And an alert reads "Please enter your name."
     expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
   })
 
@@ -262,7 +262,7 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
   })
 
-  // (po-proposed behaviour, unconfirmed — see VERIFY-WITH-HUMAN.md VH-05.) The alert clears on
+  // (Human-confirmed — see VERIFY-WITH-HUMAN.md VH-15.) The alert clears on
   // the next submission, not on the next keystroke: everything else in this feature is
   // submit-driven, and a message that vanishes mid-correction takes the explanation away while
   // the visitor is still acting on it. Reversing this is one condition in the component and
@@ -279,7 +279,7 @@ describe('Greeting screen', () => {
     await user.keyboard('Grace')
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
 
-    // Then an alert still reads "Please enter your name to be greeted."
+    // Then an alert still reads "Please enter your name."
     expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
     // And the Name field's aria-describedby attribute still references the element with role
     // "alert" — the association survives the keystrokes too, not just the element.
@@ -307,7 +307,7 @@ describe('Greeting screen', () => {
     await user.tab()
     await user.keyboard('{Enter}')
 
-    // Then an alert reads "Please enter your name to be greeted."
+    // Then an alert reads "Please enter your name."
     expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
     // And the status region is present and contains no text — a failing retry never puts a
     // greeting on screen, and never touches the region either (mockup row 12's scoping rule).
@@ -385,5 +385,55 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
     // And the status region is present and contains no text
     expect(screen.getByRole('status')).toHaveTextContent('')
+  })
+
+  // VH-01, human-confirmed in VH-15: pressing Enter with focus in the Name field submits.
+  // This is the whole reason the screen is wrapped in a native <form>; without one the
+  // keystroke does nothing and this scenario is the only thing that would notice.
+  it('greets when Enter is pressed in the Name field', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+
+    // When the visitor types "Ada" into the Name field and presses Enter. Keyboard only, and
+    // the submit control is never touched — Tab reaches the field (it is the first tabbable
+    // thing on the screen) and implicit form submission carries the rest (mockup section 7).
+    await user.tab()
+    await user.keyboard('Ada{Enter}')
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And no element with role "alert" is present
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // A *constraint* test, not a behaviour test: it asserts that something never happens, so it
+  // reaches past the DOM on purpose. CLAUDE.md names this as the one sanctioned exception to
+  // the DOM-only convention (VH-06, resolved in VH-15). It earns its place because the seed
+  // forbids persistence outright and nothing else here can see a violation: the fresh-visit
+  // scenarios above only catch storage that is read back, and a write that is never read is
+  // invisible to every assertion in this file.
+  it('never writes to web storage', async () => {
+    const user = userEvent.setup()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+
+    render(<GreetingScreen />)
+
+    // Every path that mutates the visit: a greeting, a blank rejection, and a correction.
+    const nameField = () => screen.getByRole('textbox', { name: 'Name' })
+    const submitControl = () => screen.getByRole('button', { name: 'Greet me' })
+    await user.type(nameField(), 'Ada')
+    await user.click(submitControl())
+    await user.clear(nameField())
+    await user.click(submitControl())
+    await user.type(nameField(), 'Grace')
+    await user.click(submitControl())
+
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.length).toBe(0)
+    expect(sessionStorage.length).toBe(0)
+
+    setItem.mockRestore()
   })
 })

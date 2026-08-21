@@ -1,5 +1,5 @@
-/** Fixed alert copy (po-proposed, unconfirmed — see VERIFY-WITH-HUMAN.md VH-03). */
-export const ALERT_MESSAGE = 'Please enter your name to be greeted.'
+/** Fixed alert copy. Human-confirmed and shortened — see VERIFY-WITH-HUMAN.md VH-15. */
+export const ALERT_MESSAGE = 'Please enter your name.'
 
 /** In-memory state of one visit. Replaced wholesale; never mutated. */
 export type Visit = {

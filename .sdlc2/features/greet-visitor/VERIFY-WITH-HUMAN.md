@@ -732,3 +732,115 @@ first, then rewrite this bullet against it.
 > **location** `.sdlc2/features/greet-visitor/design.md:344-369 (§5, "Seam mechanics the developer should not have to rediscover")`
 > **evidence** The seam mechanics list is presented as exhaustive — "Seam mechanics the developer should not have to rediscover" — and the only interaction it prescribes is pointer-driven: "```ts\n  const nameField = screen.getByLabelText('Name')\n  await user.click(nameField)      // paste() targets the FOCUSED element in user-event v14\n  await user.paste('\\tAda\\t')      // slice 01; slice 02's tab-only case pastes '\\t'\n  ```", closing with "Every test uses `userEvent.setup()` and `await`s each interaction — the existing `AppBanner.test.tsx` style ... is the house style to match." It is silent on keyboard operability, while `mockup.html` section 7 states the suite "should prove the full happy path plus the full recovery path are completable using only `@testing-library/user-event`'s keyboard interactions under jsdom (`Tab`, `type`, `Tab`, `{Enter}`/`{Space}` on the button) — never a pointer-only or `fireEvent`-only shortcut for the primary path." No acceptance criterion in feature.md requires this either way, so the design is free to decline it — but declining a named ux directive silently is drift, and the developer node reading §5 as authoritative will write a pointer-only primary path.
 > **fix** Add one bullet to §5's seam mechanics either adopting the directive ("the walking-skeleton scenario and the recovery scenario are driven keyboard-only: `await user.tab()` to the field, `await user.keyboard('Ada')`, `await user.tab()`, `await user.keyboard('{Enter}')` — a native button activates on Enter with or without a `<form>`, so this is compatible with VH-01 either way; `user.click` is used only for the tab-paste focus step, which is not a primary path") or declining it in one line with the reason and a pointer to mockup.html section 7, so the divergence is a decision rather than an omission.
+
+---
+
+## Index — human resolution round (grilling session, 2026-08-21)
+
+The human (repo owner) was interviewed one question at a time against the open records above.
+Every decision record is now resolved. This entry is the resolution; the records above stand
+unedited, as the file's own rule requires.
+
+| id | was | resolution | code change |
+| --- | --- | --- | --- |
+| VH-01 | open question | **Adopted.** Enter in the Name field submits; native `<form>`; pinned by a scenario | yes |
+| VH-03 | `po`-proposed copy | **"Greet me" confirmed; alert shortened** to "Please enter your name." | yes |
+| VH-04 | `po` arbiter call | **Confirmed** (follows from keeping VH-11) | no |
+| VH-05 | `po` arbiter call | **Confirmed as shipped.** Alert clears on the next submission, not on keystroke | no |
+| VH-06 | assertion dropped | **Reinstated as a constraint test**, plus a named carve-out in `CLAUDE.md` | yes |
+| VH-08 | `po` arbiter call | **Confirmed.** `String.prototype.trim()`; interior whitespace deliberately untouched | no |
+| VH-09 | `ux` requirement | **Confirmed** (follows from keeping VH-11) | no |
+| VH-11 | `architect` arbiter call | **Confirmed as shipped.** Counters stay in the domain | no |
+| VH-13 | `architect` arbiter call | **Confirmed** (ADR-0009 stands) | no |
+| VH-02 | human check | **PERFORMED — passed.** See below | no |
+| VH-07 | human check | **(a) and (b) PERFORMED — passed. (c) still open** | no |
+| VH-10 | human check | **STILL OPEN** — needs a real screen reader | no |
+
+---
+
+## VH-15 — Human resolutions, and the two checks that remain
+
+**VH-01 — Enter-to-submit is adopted.** The Name field and submit control now sit inside a
+native `<form>`; the button is `type="submit"` and the handler calls `preventDefault()`. Story 1
+gains *"greets when Enter is pressed in the Name field"*, driven keyboard-only (`user.tab()`
+then `user.keyboard('Ada{Enter}')`), so it also discharges the `mockup.html` §7 / VH-14
+directive for the walking-skeleton path. **Rationale:** a visitor who types a name into a
+one-field screen and presses Enter is doing the most natural thing available to them, and the
+pre-`<form>` shape gave them nothing. The developer had already left the door open — the old
+comment called `type="button"` "essential if one is ever added". The scenario was
+mutation-checked against the pre-`<form>` component and fails there, so it is not decorative.
+This also removes VH-14's `Ada{Enter}` trap: in the form shape that sequence submits, so the
+warning about it being unsafe in shared scenarios no longer applies.
+
+**VH-03 — "Greet me" confirmed; the alert is shortened.** The alert now reads
+**"Please enter your name."** *(was: "Please enter your name to be greeted.")* **Rationale:** the
+visitor is on a screen whose only control greets them; "to be greeted" restates the purpose they
+already know, and error text is read under mild stress, where shorter is kinder. The button's
+name was left alone — it is friendly and it matches the ubiquitous language (a *visitor* is
+*greeted*). Both strings are now human-confirmed, and the `po-proposed, unconfirmed` flags on
+them in `feature.md`, the issue files and `src/visit.ts` have been cleared.
+
+**VH-05, VH-08 — confirmed as shipped, no change.** The alert stays until the next submission:
+the whole slice is submit-driven, and clearing on the first keystroke is premature reassurance
+that removes the instruction while the visitor is still acting on it. Trim stays
+`String.prototype.trim()`. A question nobody had asked was settled at the same time: **interior
+whitespace is deliberately untouched**, so `"Ada  Lovelace"` greets with its spaces intact.
+Collapsing runs would be an invented requirement, and no rule can tell a typo from a name.
+
+**VH-04, VH-09, VH-11, VH-13 — the announcement chain is confirmed as shipped.** `greetingCount`
+and `blankCount` stay on `Visit`; ADR-0009 stands. **Rationale, which the ADR undersells:**
+component-local `useState` nonces are *untestable* — no unit reaches them and jsdom cannot
+observe live-region announcement, so the mechanism's existence would rest entirely on someone
+remembering to run VH-10. In the domain it is a pure-function property
+(`submit(submit(v,'Ada'),'Ada').greetingCount === 2`), which is cheap and already asserted. The
+cost is acknowledged and unchanged: two of the aggregate's four fields exist to be render keys.
+Keeping the machinery is what makes VH-04's present-from-first-render region necessary, so that
+record is confirmed with it.
+
+**VH-06 — the storage assertion is reinstated, and `CLAUDE.md` now sanctions it.** A
+`never writes to web storage` test spies on `Storage.prototype.setItem` across a greeting, a
+blank rejection and a correction, and also asserts both storages are empty. `CLAUDE.md`'s
+Conventions gain a named exception for **constraint tests** — assertions that something never
+happens, whose subject has no rendered form. **Rationale:** the arbiter resolved a genuine
+conflict between two authoritative documents (the seed forbids storage outright; `CLAUDE.md`
+forbids the only test that catches it) silently, inside one feature's contract. The record's own
+note said the fix belongs in `CLAUDE.md`, and that is where it now is. The prohibition previously
+rested on nobody forgetting, and the obvious future request — "remember my name so I don't have
+to retype it" — is exactly the change that would violate it without failing anything.
+
+**VH-02 — PERFORMED, passed.** Driven in Chromium against the Vite dev server: typed `"  Ada  "`,
+submitted with Enter, confirmed `Hello, Ada` (trimmed) while the field kept `"  Ada  "` verbatim
+and the URL did not change, then called a genuine `location.reload()`. After the reload: field
+empty, status region present with empty text, no alert, no stale `aria-describedby`,
+`localStorage.length === 0`, `sessionStorage.length === 0`. **The jsdom remount proxy is
+faithful** — this record is closed.
+
+**VH-07 (a), (b) — PERFORMED, passed.** In the same session, with the alert on screen:
+`document.styleSheets.length === 0`; the alert's computed `color` is `rgb(0, 0, 0)`, identical to
+`body`'s; `background-color` transparent; no border; `font-weight: 400`; no class. The Name
+field's border stays the UA default grey in the error state. The alert is typographically
+indistinguishable from ordinary text, so it carries its meaning in words alone and greyscale
+loses nothing. **Caveat:** this passes *because the app is entirely unstyled*. The moment any
+stylesheet lands, (a) and (b) must be re-run — the evidence is about the current absence of
+colour, not about a design that resists colour.
+
+### Still open — the two checks that need a human at a screen reader
+
+Neither can be automated: jsdom cannot observe live-region announcement, and neither can a
+headless browser. Run these against the dev server with NVDA, VoiceOver or Orca active.
+
+- **VH-07 (c)** — submit a blank name. Confirm the screen reader announces
+  "Please enter your name." and that moving focus to the Name field reads it as the field's
+  description.
+- **VH-10 (a)** — submit the same valid name twice in a row. Confirm the **second**
+  `Hello, <name>` is announced, not silent. This is the check that the two counters buy.
+- **VH-10 (b)** — submit a blank name twice in a row. Confirm the alert is announced again on
+  the second failing submit.
+- **VH-10 (c)** — during (a) confirm the alert is neither announced nor touched, and during (b)
+  confirm the status region is neither announced nor touched. This is the per-result scoping
+  rule (`mockup.html` §5, row 9 / Story2-S4): a failing submit must never re-announce a stale
+  greeting as feedback for a submission that failed.
+
+If (a) or (b) is silent, the mechanism is wrong rather than the requirement: reopen ADR-0009
+with options 4 (visually-hidden nonce) or 5 (remove-and-reinsert) back on the table, per VH-11's
+"what would change my mind".

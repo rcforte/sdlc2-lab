@@ -107,7 +107,7 @@ Aggregate root: Visit      (in-memory, per mount, no identity, no persistence)
     submit(rawName)                            -- the ONLY state transition in the feature
   projections (pure reads, no state)
     greetingText()  -> '' | `Hello, ${greetedName}`
-    alertText()     -> null | 'Please enter your name to be greeted.'
+    alertText()     -> null | 'Please enter your name.'
 ```
 
 `Visit` is an **aggregate of one**: a single consistency boundary, a single command, and therefore
@@ -298,8 +298,8 @@ what is live when. Nothing is sequenced *within* an invariant: when a rule arriv
 (ADR-0007).
 
 ```ts
-/** Fixed alert copy (po-proposed, unconfirmed — see VERIFY-WITH-HUMAN.md VH-03). */
-export const ALERT_MESSAGE = 'Please enter your name to be greeted.'
+/** Fixed alert copy. Human-confirmed and shortened — see VERIFY-WITH-HUMAN.md VH-15. */
+export const ALERT_MESSAGE = 'Please enter your name.'
 
 /** In-memory state of one visit. Replaced wholesale; never mutated. */
 export type Visit = {
@@ -532,7 +532,7 @@ blank, so within slice 02 the flag only ever travels `false → true`.
 That sequencing is **rejected** (ADR-0007). It buys a red bar by shipping a user-visible
 accessibility defect for the length of a slice. Concretely, at the end of slice 02 with all five of
 its scenarios green: a visitor submits blank, sees the alert, types "Grace", submits — the status
-region reads `Hello, Grace` **and** the alert *"Please enter your name to be greeted."* is still on
+region reads `Hello, Grace` **and** the alert *"Please enter your name."* is still on
 screen, with the Name field's `aria-describedby` still pointing at it, so a screen reader announces
 an error as the description of a field that just succeeded. That is exactly the symptom ADR-0001's
 Context names as the reason the two fields belong in one aggregate ("an alert that lingers next to a

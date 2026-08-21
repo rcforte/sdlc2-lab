@@ -64,8 +64,8 @@ responding to *you* rather than to everyone identically.
 > contract, by the `po` node — they exist so every acceptance criterion below uses one fixed name
 > for each screen element instead of each story inventing its own. Three of them go beyond what
 > the seed literally fixes (the submit control's accessible name, the alert's text, and the
-> status region's behaviour at rest); each is flagged `po-proposed, unconfirmed` and recorded in
-> `VERIFY-WITH-HUMAN.md` (VH-03, VH-04) for a human to confirm or change.
+> status region's behaviour at rest); each was flagged `po-proposed, unconfirmed` and recorded in
+> `VERIFY-WITH-HUMAN.md` (VH-03, VH-04). All three are now human-confirmed — see VH-15.
 
 - **Greeting screen** — the one screen this feature adds to: the Name field, the submit control,
   the status region (always present, empty until there is a greeting), and the alert (present only
@@ -73,7 +73,7 @@ responding to *you* rather than to everyone identically.
   screen`.
 - **Name field** — the labelled text input ("Name") the visitor types into. Named in every
   acceptance criterion below, so its label text is fixed here.
-- **Submit control** *(po-proposed accessible name, unconfirmed — see VH-03)* — the button
+- **Submit control** *(accessible name human-confirmed — see VH-15)* — the button
   labelled "Greet me" that submits the Name field. Story 1's acceptance criteria assert this
   accessible name directly (`getByRole('button', { name: 'Greet me' })` under the declared
   frontend seam). "The visitor activates the submit control" means the visitor clicks it (or
@@ -82,7 +82,7 @@ responding to *you* rather than to everyone identically.
   focus in the Name field *also* submits is a separate open question, not decided by this
   entry — see Out of scope and `VERIFY-WITH-HUMAN.md` VH-01 for the `po` node's proposal and why
   it is flagged for human confirmation rather than settled here.
-- **Status region** *(po-proposed behaviour at rest, unconfirmed — see VH-04)* — the single
+- **Status region** *(behaviour at rest human-confirmed — see VH-15)* — the single
   element that carries the greeting, exposed with `role="status"`. It is **present in the DOM from
   the first render and stays present**, holding **no text at all** until the first successful
   greeting, and the current greeting from then on. (A blank submission never empties it: if a
@@ -102,9 +102,9 @@ responding to *you* rather than to everyone identically.
   with this meaning throughout: `"\tAda\t"` greets `Hello, Ada`, and a name made only of tabs is
   blank. Story 1 and Story 2 each carry a tab-based scenario so an implementation that strips only
   the space character fails.
-- **Alert** *(po-proposed text, unconfirmed — see VH-03)* — the error message region, exposed
+- **Alert** *(text human-confirmed and shortened — see VH-15)* — the error message region, exposed
   with `role="alert"`, tied to the Name field via `aria-describedby`. Its fixed text is "Please
-  enter your name to be greeted." Unlike the status region, the alert is **absent** from the DOM
+  enter your name." Unlike the status region, the alert is **absent** from the DOM
   whenever there is no error to report — every scenario that says "no element with role \"alert\"
   is present" means `expect(screen.queryByRole('alert')).toBeNull()`.
 - **Fresh visit** — arriving at the greeting screen anew, as if for the first time, with nothing
@@ -254,28 +254,28 @@ Scenario: Submitting an empty Name field shows an alert and no greeting
   And the Name field is empty
   When the visitor activates the submit control
   Then the status region is present and contains no text
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: Submitting a whitespace-only name is treated as blank
   Given the visitor is on the greeting screen
   When the visitor types "   " into the Name field
   And the visitor activates the submit control
   Then the status region is present and contains no text
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: A tab-only name is treated as blank too
   Given the visitor is on the greeting screen
   When the visitor enters "\t" (a single tab character) into the Name field
   And the visitor activates the submit control
   Then the status region is present and contains no text
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: A blank submission does not clear an existing greeting
   Given the visitor has already been greeted "Hello, Ada"
   When the visitor clears the Name field
   And the visitor activates the submit control
   Then the greeting still reads "Hello, Ada"
-  And an alert reads "Please enter your name to be greeted."
+  And an alert reads "Please enter your name."
 
 Scenario: The alert is tied to the Name field
   Given the visitor is on the greeting screen
@@ -288,7 +288,7 @@ The seed's "The error is text, not colour" decision splits into two halves, and 
 dropped:
 
 - The **testable half** is asserted right here, by the scenarios above: the alert *carries its
-  meaning in words* ("Please enter your name to be greeted.") and is *programmatically associated*
+  meaning in words* ("Please enter your name.") and is *programmatically associated*
   with the Name field via `aria-describedby`. A screen-reader visitor gets the message and knows
   which field it belongs to, with no reliance on colour.
 - The **untestable half** — that no colour-only signal (a red border, red text with no words) is
@@ -322,18 +322,18 @@ Scenario: Correcting a blank submission clears the alert and shows the greeting
   And no element with role "alert" is present
   And the Name field no longer has an aria-describedby reference to the alert
 
-# (po-proposed behaviour, unconfirmed — see VERIFY-WITH-HUMAN.md VH-05)
+# (human-confirmed — see VERIFY-WITH-HUMAN.md VH-15)
 Scenario: The alert stays until the visitor submits again
   Given the visitor submitted a blank Name field and sees the alert
   When the visitor types "Grace" into the Name field
-  Then an alert still reads "Please enter your name to be greeted."
+  Then an alert still reads "Please enter your name."
   And the Name field's aria-describedby attribute still references the element with role "alert"
 
 Scenario: Retrying with a whitespace-only name still shows the alert
   Given the visitor submitted a blank Name field and sees the alert
   When the visitor types "   " into the Name field
   And the visitor activates the submit control
-  Then an alert reads "Please enter your name to be greeted."
+  Then an alert reads "Please enter your name."
   And the status region is present and contains no text
 ```
 
@@ -431,12 +431,8 @@ not by this suite. See `VERIFY-WITH-HUMAN.md` **VH-06**.
 - **Editing or deleting a greeting via a dedicated control.** The only way to change what's
   shown is to type a new name and submit again (see Story 1's "replaces the previous greeting"
   scenario); there is no separate clear/delete affordance.
-- **Submitting by pressing Enter while focus is in the Name field** *(po-proposed exclusion,
-  unconfirmed — see `VERIFY-WITH-HUMAN.md` VH-01).* Every scenario's "the visitor activates the
-  submit control" step means interacting with the submit control itself (see the Submit control
-  entry in Contract vocabulary above); no scenario in this slice asserts Enter-to-submit
-  behaviour in either direction — neither that it works nor that it is suppressed. The developer
-  is free to implement the Name field and submit control inside a native `<form>` (which gives
-  Enter-to-submit for free and is the more accessible default) or not; this slice does not test
-  for it. The mockup's plain `<button>` outside a `<form>` is a lo-fi drawing choice, not a
-  constraint — see VH-01 for the open question.
+*(Removed from Out of scope: **submitting by pressing Enter while focus is in the Name field**.
+A human resolved VH-01 in favour of adopting it — see `VERIFY-WITH-HUMAN.md` VH-15. The Name
+field and submit control now sit inside a native `<form>`, and Story 1 carries a scenario
+asserting that Enter in the field greets. Every other scenario's "the visitor activates the
+submit control" step still means interacting with the submit control itself.)*
