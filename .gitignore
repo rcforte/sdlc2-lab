@@ -2,3 +2,10 @@ node_modules/
 dist/
 *.log
 *.tsbuildinfo
+
+# git worktrees are created INSIDE the repo — sdlc2 builds concurrent slices in
+# .sdlc2/worktrees/, the Claude Code harness puts agent worktrees in .claude/worktrees/.
+# Un-ignored, either shows up in `git status --porcelain`, which sdlc2 pre-check 1
+# requires to be empty. Measured: one isolated agent takes the tree from clean to `?? .claude/`.
+.sdlc2/worktrees/
+.claude/worktrees/

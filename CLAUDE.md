@@ -29,8 +29,12 @@ adding signal.
 <!-- sdlc2:config -->
 ```yaml
 commands:
-  test:  "npm test -- --run"
-  build: "npm run build"
+  test:    "npm test -- --run"
+  build:   "npm run build"
+  # Unlocks parallel slice lanes: independent slices build concurrently, each in its own git
+  # worktree, and a fresh worktree has no node_modules. Vitest/jsdom binds no fixed port, so
+  # concurrent suites do not collide here.
+  install: "npm ci"
 seam:
   backend:  ""
   frontend: "React Testing Library + user-event via Vitest (jsdom)"
