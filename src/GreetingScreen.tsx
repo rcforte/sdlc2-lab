@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { alertText, greetingText, isLogEmpty, newVisit, submit, type Visit } from './visit'
+import { useRef, useState, type FormEvent } from 'react'
+import { alertText, clear, greetingText, isLogEmpty, newVisit, submit, type Visit } from './visit'
 
 const NAME_FIELD_ID = 'name'
 const ALERT_ID = 'name-error'
@@ -10,6 +10,9 @@ const LOG_HEADING_ID = 'greeting-log-heading'
 // One production edit site each, so confirmed copy moves in one place (design.md §2.5).
 const LOG_HEADING = 'Greeted this visit'
 const EMPTY_LOG_MESSAGE = 'You have not been greeted yet.'
+// po-proposed, unconfirmed (VH-01, VH-04, VH-05): "Clear the list" is the alternative a human
+// may confirm instead. Nothing but this one const and the string in the tests moves either way.
+const CLEAR_CONTROL_LABEL = 'Clear the log'
 
 export function GreetingScreen() {
   // Two component-local hooks, both dying at unmount: the visitor's draft (INV-6c) and the
@@ -17,6 +20,10 @@ export function GreetingScreen() {
   // without any reset logic.
   const [rawName, setRawName] = useState<string>('')
   const [visit, setVisit] = useState<Visit>(newVisit)
+  // The one imperative handle on this screen, and it has exactly one user: the clear handler
+  // below (P11). Clearing destroys the control the visitor was standing on, and focus has to be
+  // put somewhere deliberately or it falls back to the document body.
+  const logRegion = useRef<HTMLElement | null>(null)
 
   // Handles both routes into a submission: activating the button, and pressing Enter with
   // focus in the Name field (VH-01, human-confirmed). preventDefault stops the native
@@ -26,13 +33,27 @@ export function GreetingScreen() {
     setVisit((current) => submit(current, rawName))
   }
 
+  // The visit's second transition, and the only one that is not a submission: it empties the
+  // log and takes the current greeting with it (INV-9b), leaving the pending alert and the
+  // visitor's draft exactly where they were — the domain carries that guarantee, not this
+  // handler (INV-11, VH-03).
+  const clearTheLog = () => {
+    setVisit(clear)
+    // R17/P11: move focus to the region that changed — not a useEffect, because the region is
+    // rendered unconditionally (P6) and so is already mounted and survives this update. The
+    // status region emptying announces nothing, so this move is the whole of the visitor's
+    // feedback for clearing (ADR-0014).
+    logRegion.current?.focus()
+  }
+
   // The domain decides whether there is a message and what it says (INV-5b); this component
   // decides only whether an element exists (P2) and what it is linked to (P3). Both read this
   // one expression, so they cannot disagree.
   const alert = alertText(visit)
 
-  // INV-12: the domain decides emptiness, this component only decides which shape exists (P7).
-  // From slice 02 the clear control reads the same const (P8), so the two can never disagree.
+  // INV-12: the domain decides emptiness, this component only decides which shape exists (P7)
+  // and whether there is a control for emptying it (P8). Two DOM decisions, one predicate, read
+  // once — so "the log says it is empty" and "there is something to clear" can never disagree.
   const logIsEmpty = isLogEmpty(visit)
 
   return (
@@ -88,12 +109,20 @@ export function GreetingScreen() {
           from the visible <h2> via aria-labelledby, not an aria-label: without it a <section> is
           exposed as a generic container rather than a region, and the same element has to answer
           both the region query and the heading query.
-          Two attributes this region will grow are deliberately not here yet, because nothing in
-          this slice fails without them: tabIndex={-1} (only load-bearing for slice 02's focus
-          move, R17/P11, which is where the test that fails without it lives) and
-          className="greeting-log" (the styling hook for that focus indicator, P12/VH-08, which
-          design.md §5.1 already assigns to slice 02). */}
-      <section aria-labelledby={LOG_HEADING_ID}>
+          tabIndex={-1} makes the region focusable programmatically without making it a tab stop:
+          -1, never 0 — the visitor is *put* here after clearing (P11) and must not have to tab
+          through a container on the way to the controls. Without it, .focus() is a silent no-op.
+          className="greeting-log" carries no behaviour and no test: it is the mockup's own
+          selector, and the attach point for the visible :focus indicator that a sighted keyboard
+          visitor needs to see this move land. That CSS rule is written out in mockup.html §5 and
+          owned by frontend-design / the human gate, not by this behaviour slice (P12, VH-08,
+          ADR-0017) — this repo ships no stylesheet, and the test seam cannot see one. */}
+      <section
+        ref={logRegion}
+        className="greeting-log"
+        tabIndex={-1}
+        aria-labelledby={LOG_HEADING_ID}
+      >
         <h2 id={LOG_HEADING_ID}>{LOG_HEADING}</h2>
         {/* P7: exactly one of two shapes, chosen by one ternary — never two independent &&
             conditionals, which is what would let the empty message and a list of entries appear
@@ -110,6 +139,17 @@ export function GreetingScreen() {
               <li key={index}>{entry}</li>
             ))}
           </ol>
+        )}
+        {/* P8: the clear control exists iff the log is non-empty — absent from the DOM, never
+            disabled, so there is no empty activation whose silence has to be explained. It reads
+            the *same* const as the shape above, so which shape is on screen and whether there is
+            anything to clear can never disagree (INV-12's two readers). type="button" is
+            load-bearing: the default is "submit", and this button sits in the same document as
+            the form, so an untyped one would greet instead of clearing. */}
+        {!logIsEmpty && (
+          <button type="button" onClick={clearTheLog}>
+            {CLEAR_CONTROL_LABEL}
+          </button>
         )}
       </section>
     </>

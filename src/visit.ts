@@ -36,8 +36,9 @@ export function isBlank(rawName: string): boolean {
 }
 
 /**
- * The only state transition on the log. Total, pure, synchronous. INV-2′, INV-9a, INV-13,
- * INV-5a, INV-8b. Takes the raw string and trims it here, so no caller can bypass the rule.
+ * The visit's first command, and the only one that ever *adds* to the log — `clear` below is the
+ * only one that takes away. Total, pure, synchronous. INV-2′, INV-9a, INV-13, INV-5a, INV-8b.
+ * Takes the raw string and trims it here, so no caller can bypass the rule.
  *
  * Note what each branch leaves alone: that asymmetry is the scoping rule (R9). A blank
  * submission renews the alert only, a successful one appends to the log only, so a failing
@@ -60,8 +61,27 @@ export function submit(visit: Visit, rawName: string): Visit {
 }
 
 /**
+ * The visit's second command (ADR-0013), and the only way an entry ever leaves the log: it
+ * removes them all, so there is no partial removal anywhere in the domain and no function here
+ * takes an index. INV-9b, INV-11.
+ *
+ * The greeting goes with them without being mentioned, because it was never stored — it is
+ * derived from the newest entry, and there is now none (INV-10). The spread *is* the rest of the
+ * guarantee: every field this command must not touch is carried through by construction, so a
+ * pending alert survives clearing (VH-03) and the visitor's unsubmitted draft is out of reach
+ * entirely — the Name field is not part of a Visit at all (INV-6c).
+ *
+ * Named for the seed's own word, "Clearing — emptying the log and removing the current greeting
+ * with it". Not clearLog, which under-describes it; not reset, which over-describes it.
+ */
+export function clear(visit: Visit): Visit {
+  return { ...visit, greetingLog: [] }
+}
+
+/**
  * INV-12. The single predicate for "the greeting log has no entries". The component asks this
- * which of the log's two DOM shapes to render (P7) and never counts entries for itself.
+ * which of the log's two DOM shapes to render (P7) and whether the clear control exists at all
+ * (P8), and never counts entries for itself — two DOM decisions, one place they can be wrong.
  */
 export function isLogEmpty(visit: Visit): boolean {
   return visit.greetingLog.length === 0

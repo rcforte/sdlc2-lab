@@ -1,6 +1,7 @@
 import {
   ALERT_MESSAGE,
   alertText,
+  clear,
   greetingText,
   isBlank,
   isLogEmpty,
@@ -173,5 +174,50 @@ describe('Visit', () => {
 
     expect(greetingText(twoGreetings)).toBe('Hello, Grace')
     expect(greetingText({ ...twoGreetings, greetingLog: [] })).toBe('')
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // greeting-log issue 02 — clearing. Inner cycles for the rules the DOM can only see
+  // indirectly, or can only see less sharply (design.md §5.2).
+  // ---------------------------------------------------------------------------------------
+
+  // INV-9b / INV-10: clearing is the only way an entry leaves the log, and it removes *all* of
+  // them — there is no partial removal anywhere in the domain and no function takes an index.
+  // The greeting goes without being mentioned, because it was never stored: it is derived from
+  // the newest entry, and after this there is none (ADR-0011, ADR-0013).
+  it('empties the greeting log, and the greeting with it (INV-9b, INV-10)', () => {
+    const greetedTwice = submit(submit(newVisit, 'Ada'), 'Grace')
+
+    expect(clear(greetedTwice).greetingLog).toEqual([])
+    expect(greetingText(clear(greetedTwice))).toBe('')
+    expect(isLogEmpty(clear(greetedTwice))).toBe(true)
+    // INV-9c: the visit it was derived from is untouched — Visit values are replaced wholesale,
+    // never mutated, so nothing that still holds the old one sees it change underneath.
+    expect(greetedTwice.greetingLog).toEqual(['Ada', 'Grace'])
+  })
+
+  // INV-11 / VH-03: clearing touches the log and nothing else. The spread in `clear` is what
+  // guarantees it, so this is the test that would notice the tempting one-word alternative —
+  // returning `newVisit` — which would dismiss a pending alert as a side effect of clearing the
+  // log, contradicting `greet-visitor`'s rule that only a further submission dismisses it.
+  it('leaves a pending blank-name rejection untouched when clearing (INV-11)', () => {
+    const rejectedAfterAGreeting = submit(submit(newVisit, 'Ada'), '   ')
+
+    const cleared = clear(rejectedAfterAGreeting)
+
+    expect(cleared.lastSubmissionWasBlank).toBe(true)
+    expect(alertText(cleared)).toBe(ALERT_MESSAGE)
+    expect(cleared.blankCount).toBe(rejectedAfterAGreeting.blankCount)
+  })
+
+  // Clearing is a one-time action on the log's current contents, not a mode the visit gets stuck
+  // in: nothing is latched, so a later submission appends exactly as it did before. The domain
+  // half of "a greeting after clearing starts the greeting log again" (ADR-0013).
+  it('is not a mode: clearing twice is clearing once, and greeting after it still appends', () => {
+    const greeted = submit(newVisit, 'Ada')
+
+    expect(clear(clear(greeted))).toEqual(clear(greeted))
+    expect(submit(clear(greeted), 'Grace').greetingLog).toEqual(['Grace'])
+    expect(greetingText(submit(clear(greeted), 'Grace'))).toBe('Hello, Grace')
   })
 })

@@ -420,7 +420,11 @@ describe('Greeting screen', () => {
 
     render(<GreetingScreen />)
 
-    // Every path that mutates the visit: a greeting, a blank rejection, and a correction.
+    // Every path that mutates the visit: a greeting, a blank rejection, a correction, and a
+    // clear. The list must grow with the domain's commands, or a write in a handler this test
+    // never activates passes every scenario in the suite (ADR-0018 — measured: a setItem planted
+    // in the clear handler survives all 18 of this feature's scenarios and this very test
+    // without the last line below).
     const nameField = () => screen.getByRole('textbox', { name: 'Name' })
     const submitControl = () => screen.getByRole('button', { name: 'Greet me' })
     await user.type(nameField(), 'Ada')
@@ -429,6 +433,9 @@ describe('Greeting screen', () => {
     await user.click(submitControl())
     await user.type(nameField(), 'Grace')
     await user.click(submitControl())
+    // The clear control only exists once the log has an entry, so this comes after the last
+    // successful submit.
+    await user.click(screen.getByRole('button', { name: 'Clear the log' }))
 
     expect(setItem).not.toHaveBeenCalled()
     expect(localStorage.length).toBe(0)
@@ -692,5 +699,230 @@ describe('Greeting screen', () => {
     // control ends up being called.
     expect(screen.queryByRole('button', { name: 'Clear the log' })).toBeNull()
     expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Greet me'])
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // greeting-log issue 02 — Clear the greeting log. One acceptance test per Gherkin scenario,
+  // every one driven through render(<GreetingScreen />) (design.md §5.1, ADR-0015).
+  //
+  // The named steps below are the Contract vocabulary's clear control and its activation,
+  // written once: every scenario's "the clear control is present" / "is not present" means
+  // exactly the query below and nothing looser — queryByRole, not getByRole, because absence is
+  // half of what this issue asserts.
+  // ---------------------------------------------------------------------------------------
+
+  // The clear control's fixed accessible name (feature.md Contract vocabulary; po-proposed,
+  // VH-01/04/05 — "Clear the list" is the alternative a human may confirm instead), copied from
+  // the contract rather than imported from the component, for the same reason ALERT_TEXT above
+  // is: a scenario that imported the constant would pass whatever the constant happened to say.
+  const CLEAR_CONTROL_TEXT = 'Clear the log'
+  const clearControl = () => screen.queryByRole('button', { name: CLEAR_CONTROL_TEXT })
+
+  // Scenario: No clear control is present before the first greeting.
+  it('shows no clear control before the first greeting', () => {
+    // Given the visitor is on the greeting screen
+    // And the visitor has not been greeted yet
+    render(<GreetingScreen />)
+
+    // Then the clear control is not present. Asserted twice, exactly as issue 01's last
+    // scenario does: under the po-proposed name (VH-01/04/05), and as "the submit control is
+    // the only control on the screen", which holds whatever the clear control ends up called.
+    expect(clearControl()).toBeNull()
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Greet me'])
+  })
+
+  // Scenario: The clear control appears once the greeting log has an entry.
+  it('shows the clear control once the greeting log has an entry', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    expect(clearControl()).toBeNull()
+
+    // When the visitor types "Ada" into the Name field
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ada')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the clear control is present — and it is inside the greeting log region, which is
+    // where the mockup's normative DOM sketch (§3) puts it: the control belongs to the thing it
+    // acts on, so a visitor who lands on the log by landmark jump has it in reach.
+    expect(clearControl()).toBeInTheDocument()
+    expect(
+      within(greetingLog()).getByRole('button', { name: CLEAR_CONTROL_TEXT }),
+    ).toBeInTheDocument()
+  })
+
+  // "When the visitor activates the clear control" — the Contract vocabulary term, written once.
+  // getByRole, not the queryByRole helper above: a scenario whose When could not happen must
+  // fail loudly there, not quietly pass a Then further down. (Activation by keyboard — the other
+  // half of the term, per native button semantics — is walked in the focus scenario below.)
+  const activateTheClearControl = async (user: UserEvent) => {
+    await user.click(screen.getByRole('button', { name: CLEAR_CONTROL_TEXT }))
+  }
+
+  // Scenario: Clearing empties the greeting log and removes the current greeting.
+  it('empties the greeting log and removes the current greeting when cleared', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" and then "Hello, Grace" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await beGreeted(user, 'Grace')
+    expectTheGreetingLogToRead('Ada', 'Grace')
+
+    // When the visitor activates the clear control
+    await activateTheClearControl(user)
+
+    // Then the greeting log is empty — no list at all, and the empty message back in words
+    expectTheGreetingLogToBeEmpty()
+    // And the status region is present and contains no text: exactly the not-yet-greeted
+    // appearance, never a second, different "cleared" message. getByRole, so a status region
+    // that was removed instead of emptied fails here rather than passing as "no text".
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And no greeting is left anywhere on the screen — the log and the status region are two
+    // views of one fact, so clearing cannot leave "Hello, Grace" behind in either of them.
+    expect(screen.queryByText('Hello, Grace')).toBeNull()
+  })
+
+  // Scenario: Clearing removes the clear control itself.
+  it('removes the clear control when the greeting log is cleared', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    expect(clearControl()).toBeInTheDocument()
+
+    // When the visitor activates the clear control
+    await activateTheClearControl(user)
+
+    // Then the clear control is not present — gone from the DOM, not left behind disabled:
+    // there is nothing to clear, so there is no control whose empty activation would have to
+    // be explained. Asserted twice, as in the first scenario, so it cannot be defeated by
+    // renaming the control (VH-01/04/05).
+    expect(clearControl()).toBeNull()
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Greet me'])
+  })
+
+  // Scenario: Clearing does not touch the Name field. The field holds the visitor's draft, not a
+  // greeting — "Grace" is deliberately a name that is in no log entry here, so what survives is
+  // unambiguously the draft rather than a leftover greeting (mockup.html, Story 2 caption).
+  it('leaves the Name field untouched when the greeting log is cleared', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    // And the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor types "Grace" into the Name field without submitting it
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor activates the clear control
+    await activateTheClearControl(user)
+
+    // Then the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+    // …and the clear really did happen, so this cannot pass vacuously against a control that
+    // does nothing at all: the thing clearing *is* allowed to touch is empty.
+    expectTheGreetingLogToBeEmpty()
+  })
+
+  // Scenario: Focus moves to the greeting log after clearing.
+  //
+  // Driven keyboard-only, because this scenario exists for the visitor who cannot see where
+  // focus went. It walks the whole tab order on the way — Name field, "Greet me", "Clear the
+  // log", three stops — which is also what pins the log region to tabIndex={-1} rather than 0:
+  // the region sits between the status region and the clear control in document order, so if it
+  // were a tab stop the third Tab would land on it and never reach the control. Activating with
+  // Enter is the other half of "the visitor activates the clear control" under native button
+  // semantics (Contract vocabulary), and it is how a visitor who just used the keyboard to get
+  // there would really do it.
+  it('moves focus to the greeting log after clearing', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await user.tab()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus()
+    await user.keyboard('Ada')
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Greet me' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor activates the clear control — the next tab stop after the submit control
+    await user.tab()
+    expect(clearControl()).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    // Then the greeting log has focus. Clearing destroys the control the visitor was standing
+    // on, so focus has to land somewhere real: on the region that changed, which carries a name
+    // ("Greeted this visit") and text ("You have not been greeted yet.") rather than emptiness.
+    // Without the move, focus falls back to the document body and a visitor who cannot see the
+    // screen is told nothing at all — an emptying live region announces nothing (VH-06: whether
+    // an assistive technology speaks the region's contents on focus is the human half of this).
+    expect(greetingLog()).toHaveFocus()
+    expectTheGreetingLogToBeEmpty()
+  })
+
+  // Scenario: A greeting after clearing starts the greeting log again. Clearing is a one-time
+  // action on the log's current contents, not a mode the screen gets stuck in: no "cleared" flag
+  // may suppress further entries or keep the control hidden. After a clear the screen behaves
+  // exactly as it did on first arrival, which is why this scenario reads like issue 01's first.
+  it('starts the greeting log again when the visitor is greeted after clearing', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    // And the visitor activated the clear control
+    await activateTheClearControl(user)
+    expectTheGreetingLogToBeEmpty()
+
+    // When the visitor types "Grace" into the Name field (the field still holds the draft "Ada"
+    // that the Given typed — clearing never touches it — so it is emptied first, exactly as
+    // every other scenario that types a second name does)
+    // And the visitor activates the submit control
+    await beGreeted(user, 'Grace')
+
+    // Then the greeting reads "Hello, Grace"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Grace'), verbatim)
+    // And the greeting log has exactly one entry, oldest first: "Grace" — one, not two: the
+    // cleared entry does not come back, and the log restarts rather than resuming.
+    expectTheGreetingLogToRead('Grace')
+    // And the clear control is present
+    expect(clearControl()).toBeInTheDocument()
+  })
+
+  // Scenario: Clearing does not dismiss a pending alert. The clear control is not a submission,
+  // and `greet-visitor`'s rule — the alert stays until the visitor submits again — is unchanged
+  // by this feature (VH-03): clearing acts on the log and the current greeting, and no more.
+  it('leaves a pending alert on screen when the greeting log is cleared', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    // And the visitor has since submitted a blank Name field and sees the alert
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    expectTheGreetingLogToRead('Ada')
+
+    // When the visitor activates the clear control
+    await activateTheClearControl(user)
+
+    // Then the greeting log is empty
+    expectTheGreetingLogToBeEmpty()
+    // And the status region is present and contains no text
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And an alert still reads "Please enter your name."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // …still describing the field it belongs to, so clearing did not quietly break the
+    // association and leave the message floating unattached beside an input.
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(ALERT_TEXT)
   })
 })
