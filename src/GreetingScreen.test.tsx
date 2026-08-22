@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { GreetingScreen } from './GreetingScreen'
 
@@ -435,5 +435,262 @@ describe('Greeting screen', () => {
     expect(sessionStorage.length).toBe(0)
 
     setItem.mockRestore()
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // greeting-log issue 01 — See the greeting log grow. One acceptance test per Gherkin
+  // scenario, every one driven through render(<GreetingScreen />) (design.md §5.1, ADR-0015).
+  //
+  // The named steps below are the Contract vocabulary's two DOM shapes, written once: every
+  // scenario's "the greeting log is empty" and "the greeting log has exactly N entries, oldest
+  // first: ..." mean exactly these assertions and nothing looser.
+  // ---------------------------------------------------------------------------------------
+
+  // The empty-log copy, copied from the Gherkin rather than imported from the component, for
+  // the same reason ALERT_TEXT above is: a scenario that imported the constant would pass
+  // whatever the constant happened to say.
+  const EMPTY_LOG_MESSAGE = 'You have not been greeted yet.'
+
+  // "The greeting log is present" — the region landmark, named by its own visible heading.
+  // getByRole, not queryByRole: a region that never rendered fails loudly here instead of
+  // passing as "empty" further down.
+  const greetingLog = () => screen.getByRole('region', { name: 'Greeted this visit' })
+
+  // "The greeting log is empty" — both halves of the empty shape. The message must be its own
+  // element, because the region's own text also contains its heading, so the region's combined
+  // text is never exactly the message alone.
+  const expectTheGreetingLogToBeEmpty = () => {
+    expect(within(greetingLog()).queryByRole('list')).toBeNull()
+    expect(within(greetingLog()).getByText(EMPTY_LOG_MESSAGE)).toBeInTheDocument()
+  }
+
+  // "The greeting log has exactly N entries, oldest first: ..." — count, DOM order and exact
+  // text in one assertion, plus the empty message being gone (the two shapes are mutually
+  // exclusive, never layered). The exact form is required: expect(item).toHaveTextContent('Ada')
+  // is a *substring* match under jest-dom and would also pass against an entry reading
+  // "Hello, Ada", which is precisely the entry text this feature forbids.
+  const expectTheGreetingLogToRead = (...names: string[]) => {
+    const items = within(greetingLog()).getAllByRole('listitem')
+    expect(items).toHaveLength(names.length)
+    expect(items.map((item) => item.textContent?.trim())).toEqual(names)
+    expect(within(greetingLog()).queryByText(EMPTY_LOG_MESSAGE)).toBeNull()
+  }
+
+  // Scenario: The visitor sees the greeting log gain its first entry (the walking skeleton).
+  it('adds the first entry to the greeting log when the visitor is greeted', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the greeting log is empty
+    expectTheGreetingLogToBeEmpty()
+
+    // When the visitor types "Ada" into the Name field
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ada')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the greeting log has exactly one entry, oldest first: "Ada"
+    // And the greeting log no longer says "You have not been greeted yet."
+    expectTheGreetingLogToRead('Ada')
+    // And a heading reads "Greeted this visit"
+    expect(screen.getByRole('heading', { name: 'Greeted this visit' })).toBeInTheDocument()
+  })
+
+  // Scenario: The greeting log is present with its empty message before the first greeting.
+  it('shows the greeting log with its empty message before the first greeting', () => {
+    // Given the visitor is on the greeting screen
+    // And the visitor has not been greeted yet
+    render(<GreetingScreen />)
+
+    // Then the greeting log is present
+    expect(greetingLog()).toBeInTheDocument()
+    // And the greeting log is empty
+    expectTheGreetingLogToBeEmpty()
+    // And a heading reads "Greeted this visit" — and it is the *same* element that names the
+    // region, so what a screen reader announces on landing there is text a sighted visitor can
+    // read, not an aria-label duplicating nothing on screen.
+    expect(screen.getByRole('heading', { name: 'Greeted this visit' })).toBeInTheDocument()
+    expect(greetingLog()).toHaveAccessibleName('Greeted this visit')
+    // And the greeting log follows the status region in document order — the one DOM-observable
+    // consequence of the agreed "below the greeting" placement, since sequential screen-reader
+    // reading order follows DOM order (visual position is out of scope).
+    const statusRegion = screen.getByRole('status')
+    expect(
+      statusRegion.compareDocumentPosition(greetingLog()) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  // "Given the visitor has already been greeted ..." — one named step rather than a copy per
+  // scenario. It clears the field first (so it composes when called twice) and asserts the
+  // greeting really arrived, so no scenario can start from a Given that silently did not happen.
+  const beGreeted = async (user: UserEvent, name: string) => {
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), name)
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('status')).toHaveTextContent(exactly(`Hello, ${name}`), verbatim)
+  }
+
+  // "The greeting log's newest entry reads X" — the *last* item in the same list, matched the
+  // same exact way as every other entry.
+  const expectTheNewestEntryToRead = (name: string) => {
+    const items = within(greetingLog()).getAllByRole('listitem')
+    expect(items[items.length - 1].textContent?.trim()).toBe(name)
+  }
+
+  // Scenario: Entries read oldest first, and the on-screen greeting is the log's newest entry.
+  // Three is the smallest count that tells append-only growth apart from a fixed-size window
+  // that silently drops the oldest entry; two cannot.
+  it('reads oldest first, with the on-screen greeting as the newest entry', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" and then "Hello, Grace"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await beGreeted(user, 'Grace')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor types "Alan" into the Name field
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Alan')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting reads "Hello, Alan"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Alan'), verbatim)
+    // And the greeting log has exactly three entries, oldest first: "Ada", "Grace", "Alan"
+    expectTheGreetingLogToRead('Ada', 'Grace', 'Alan')
+    // And the greeting log's newest entry reads "Alan" — asserted in the same breath as the
+    // greeting above, which is what pins "the current greeting is an entry".
+    expectTheNewestEntryToRead('Alan')
+  })
+
+  // Scenario: Being greeted as the same name twice produces two entries. The log is a sequence,
+  // not a set — no dedup rule exists to get wrong, and this is what says so.
+  it('adds a second entry when the visitor is greeted as the same name twice', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor types "Ada" into the Name field
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ada')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the greeting log has exactly two entries, oldest first: "Ada", "Ada"
+    expectTheGreetingLogToRead('Ada', 'Ada')
+  })
+
+  // Scenario: Tabs around a name are trimmed before the entry is added to the greeting log.
+  // Tabs, not spaces: an implementation that strips only the space character would pass a
+  // space-only scenario, so this is what pins "trimmed" to String.prototype.trim() semantics.
+  it('trims tabs around the name before adding the entry to the greeting log', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+
+    // When the visitor enters "\tAda\t" (tab, "Ada", tab) into the Name field. Pasted into the
+    // focused field, because a literal Tab keystroke moves focus rather than inserting a
+    // character — the behaviour under test is what the field contains, not how it got there.
+    await user.tab()
+    await user.paste('\tAda\t')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('\tAda\t')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the greeting log has exactly one entry, oldest first: "Ada" — the entry text is
+    // trimmed too, not just the greeting.
+    expectTheGreetingLogToRead('Ada')
+  })
+
+  // Scenario: A blank submission does not add to the greeting log.
+  it('adds nothing to the greeting log when a blank submission follows a greeting', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And an alert reads "Please enter your name."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // And the greeting log still has exactly one entry, oldest first: "Ada"
+    expectTheGreetingLogToRead('Ada')
+  })
+
+  // Scenario: A whitespace-only submission does not add to the greeting log. Distinct from the
+  // empty-field case above: an implementation that keyed the append off the raw field value
+  // instead of the trimmed one would append a blank entry here and pass every other scenario.
+  it('adds nothing to the greeting log when a whitespace-only submission follows a greeting', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor enters "   " (three spaces) into the Name field
+    await user.paste('   ')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('   ')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And an alert reads "Please enter your name."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // And the greeting log still has exactly one entry, oldest first: "Ada"
+    expectTheGreetingLogToRead('Ada')
+  })
+
+  // Scenario: A blank submission on an already-empty greeting log adds nothing. The one cell of
+  // "blank x log state" the two scenarios above structurally cannot reach — both start from a
+  // log that already has an entry. Without it, an implementation that created the clear control
+  // the moment any submission was attempted, rather than the moment an entry actually landed,
+  // would pass every other scenario in this issue.
+  it('adds nothing when the first submission of the visit is blank', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the greeting log is empty
+    expectTheGreetingLogToBeEmpty()
+
+    // When the visitor activates the submit control with an empty Name field
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then an alert reads "Please enter your name."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // And the greeting log is empty
+    expectTheGreetingLogToBeEmpty()
+    // And the status region is present and contains no text
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And the clear control is not present. In this slice that holds because no clear control
+    // exists at all — a correct outside-in state, not a hole; the step bites in issue 02, where
+    // a control that appears on any submission would fail here and nowhere else. Asserted twice
+    // so it cannot be defeated by naming: under the po-proposed name (VH-01/04/05), and as
+    // "the submit control is the only control on the screen", which holds whatever a clear
+    // control ends up being called.
+    expect(screen.queryByRole('button', { name: 'Clear the log' })).toBeNull()
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Greet me'])
   })
 })
