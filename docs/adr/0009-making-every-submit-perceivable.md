@@ -1,8 +1,17 @@
 # ADR-0009 — Making every submit perceivable: the aggregate counts submissions, the component renders that count as node identity
 
-- **Status:** Proposed — accepted pending the human VERIFY gate (no code exists yet). Additionally
-  contingent on the still-open `VERIFY-WITH-HUMAN.md` **VH-09** (the requirement) and **VH-10** (the
-  human check that backs it); this ADR is the architect's decision record for **VH-11**.
+- **Status:** Accepted — the decision is in the code (`Visit.greetingCount`, `src/GreetingScreen.tsx`
+  `<span key={visit.greetingCount}>`) — and **amended twice by `greeting-log`
+  (2026-08-22)**, in scope and in mechanism, and withdrawn in neither:
+  **[ADR-0014](0014-clearing-is-perceivable-by-focus.md)** scopes R9 to **submissions** (clearing
+  the greeting log deliberately returns the status region to textless — the state R9's wording
+  forbade when a submission was the only command — and its perceivability is carried by a focus
+  move instead); **[ADR-0011](0011-greeting-derived-from-the-newest-log-entry.md)** replaces this
+  ADR's storage mechanism, `Visit.greetingCount` and `<span key={visit.greetingCount}>`, with
+  `visit.greetingLog.length` and `<span key={visit.greetingLog.length}>` — same identity, same
+  behaviour on an identical resubmit (measured: `greeting-log` design §5.5), one fewer field.
+  Still contingent on `greet-visitor`'s **VH-09** (the requirement) and **VH-10** (the human check
+  that backs it); this ADR remains the architect's decision record for **VH-11**.
 - **Date:** 2026-08-16
 - **Feature:** `greet-visitor` (`.sdlc2/features/greet-visitor/design.md` R9, §2.3, §2.4 INV-8a /
   INV-8b / P4 / P5, §3, §5.4, §6)

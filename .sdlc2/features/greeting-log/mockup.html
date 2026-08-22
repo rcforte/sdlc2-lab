@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The greeting log — mockup</title>
+<style>
+  body {
+    font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+  }
+  h1 {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+  p.intro {
+    color: #444;
+    max-width: 70ch;
+    margin: 0 0 2rem;
+  }
+  .story {
+    max-width: 900px;
+    margin: 0 auto 2.5rem;
+  }
+  .story h2 {
+    font-size: 1rem;
+    margin: 0 0 0.25rem;
+  }
+  .story .caption {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.75rem;
+    max-width: 70ch;
+  }
+  .before-after {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .before-after .panel {
+    flex: 1;
+    min-width: min(300px, 100%);
+  }
+  .before-after .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #595959;
+    margin-bottom: 0.35rem;
+  }
+  .screen {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.5rem;
+    box-sizing: border-box;
+  }
+  /* round 3 fix (UX-A11Y): was `.screen h1`, a second, competing <h1> inside every thumbnail —
+     the document's real outline ran h1 -> h2 -> h1, a level that is never valid to repeat as a
+     sibling under an h2. Restyled as a non-heading paragraph standing in for the app's own
+     <main><header><h1>sdlc2 lab</h1></header> block (see markup below and §3/§6 notes). */
+  .screen .screen-title {
+    font-size: 0.9rem;
+    font-weight: bold;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 0.65rem;
+    margin: 0 0 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid #595959;
+    border-radius: 3px;
+  }
+  .field-row {
+    margin-bottom: 0.75rem;
+  }
+  /* round 2 fix (UX-A11Y): "visible focus" was asserted in section 6 but nowhere drawn, a
+     regression flagged against the sibling greet-visitor/mockup.html fix. Same normative tokens:
+     --focus-ring-width: 2px, --focus-ring-offset: 2px. */
+  input[type="text"]:focus-visible,
+  button:focus-visible {
+    outline: var(--focus-ring-width, 2px) solid #1a1a1a;
+    outline-offset: var(--focus-ring-offset, 2px);
+  }
+  /* round 2 fix (UX-A11Y): the one focus move this feature adds is a script-driven
+     tabindex="-1" focus() call on the log region after clearing, which does not match
+     :focus-visible in Chromium — so this uses :focus, not :focus-visible, deliberately. The
+     .demo-focus class below applies the same rule permanently to a static panel so the state is
+     drawn, not just asserted in prose. */
+  .greeting-log:focus,
+  .greeting-log.demo-focus {
+    outline: var(--focus-ring-width, 2px) solid #1a1a1a;
+    outline-offset: var(--focus-ring-offset, 2px);
+  }
+  button {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.95rem;
+    border: 1px solid #333;
+    background: #eee;
+    border-radius: 3px;
+    cursor: pointer;
+    /* round 2 fix (UX-A11Y): WCAG 2.5.5 target size, restored — was min-height only.
+       Normative token for frontend-design: --control-min-target: 44px. */
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .greeting {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1.05rem;
+    /* round 2 fix (UX-A11Y): restore the two wrap declarations dropped from this rule —
+       same contract as .error below, needed for the no-length-limit AC (a 300-char name). */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  .greeting.empty {
+    border: none;
+    min-height: 0;
+    padding: 0;
+    margin-top: 0.5rem;
+  }
+  .region-note {
+    font-size: 0.72rem;
+    color: #595959;
+    margin: 0.25rem 0 0;
+  }
+  .error {
+    font-size: 0.9rem;
+    margin-top: 0.35rem;
+    border-left: 3px solid #999;
+    padding-left: 0.5rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  /* The greeting log region: a labelled landmark, present from the first render, headed
+     "Greeted this visit". Two drawn shapes only — empty (text) or a list (entries) — never a
+     bare, textless container (feature.md, Contract vocabulary, "The greeting log's two DOM
+     shapes"). */
+  .greeting-log {
+    margin-top: 1.5rem;
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+  }
+  .greeting-log h2 {
+    font-size: 0.9rem;
+    margin: 0 0 0.5rem;
+  }
+  .greeting-log .empty-text {
+    font-size: 0.92rem;
+    color: #333;
+    margin: 0;
+  }
+  .greeting-log ol {
+    margin: 0 0 0.75rem;
+    padding-left: 1.4rem;
+    font-size: 0.92rem;
+  }
+  .greeting-log ol li {
+    padding: 0.15rem 0;
+    /* round 2 fix (UX-A11Y): entries carry no length limit (a 300-char name is a valid entry,
+       greet-visitor's own unretired AC) and had no wrap rule at all. */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  .clear-control {
+    background: #fff;
+  }
+  /* round 2 fix (UX-A11Y, reflow): the 6-column state matrix has no shrink mechanism of its own.
+     Wrap it (see markup below) so a narrow viewport scrolls the table horizontally inside its
+     own box instead of the page scrolling — same fix greet-visitor/mockup.html applied. */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  .focus-note {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.72rem;
+    color: #595959;
+    border: 1px dashed #999;
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+  }
+  .step {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #666;
+    margin: 0 0 0.5rem;
+  }
+  .po-flag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: bold;
+    background: #fff6d8;
+    color: #6b5200;
+    border: 1px solid #d8c078;
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    margin-left: 0.4rem;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<h1>The greeting log — mockup</h1>
+<p class="intro">
+  One screen, extended: the existing labelled Name field and submit control ("Greet me"), the
+  existing greeting (<code>role="status"</code>), the existing alert (<code>role="alert"</code>,
+  shown after a blank submission), and — new in this feature — the greeting log region headed
+  "Greeted this visit" below it, plus a clear control that appears only once the log has an entry.
+  Every block below is the <em>same</em> screen shown at a set of states, one set per story's
+  happy path, drawn as before/after (or before/during/after) panels so the state each story
+  changes is visible at a glance. This is a behaviour slice — no colour system, no visual design
+  beyond what the existing markup implies; the neutral borders below are lo-fi structural chrome
+  only. The clear control's label "Clear the log" is
+  <span class="po-flag">po-proposed, unconfirmed</span> — see feature.md, Contract vocabulary, and
+  VERIFY-WITH-HUMAN.md VH-01, VH-04 and VH-05 ("Clear the list" is the named alternative). Every
+  greeting log
+  region below is headed by a visible
+  <code>&lt;h2&gt;</code> the region references via <code>aria-labelledby</code>, and is
+  programmatically focusable (<code>tabindex="-1"</code>) so focus can move there after clearing.
+  The clear control is Story 2's own control — it is not drawn in Story 1's panels below, since
+  Story 1's acceptance criteria never mention it (it "arrives with Story 2").
+</p>
+
+<!-- ============================================================ -->
+<!-- UX experience spec — flow, IA, state matrix, wireframe, a11y  -->
+<!-- Added by the ux node. Structure only, no new visual system.   -->
+<!-- ============================================================ -->
+<section class="story" id="ux-spec" aria-labelledby="ux-spec-heading">
+  <h2 id="ux-spec-heading">Experience spec — flow, states, IA, a11y</h2>
+  <p class="caption">
+    This section is the ux node's own artifact: how the screen behaves as a whole, not another
+    drawn panel. It does not add screens, routes or controls beyond what <code>feature.md</code>
+    already fixes — it is the map of the states and paths those panels below are samples of.
+  </p>
+
+  <h3>1. Experience summary</h3>
+  <ul>
+    <li><strong>Actor.</strong> The Visitor — no account, no session, no identity beyond the text
+      typed into the Name field (unchanged from <code>greet-visitor</code>).</li>
+    <li><strong>Job-to-be-done.</strong> "Let me look back at everyone I've been greeted as during
+      this visit, and let me wipe that log clean when I'm done with it."</li>
+    <li><strong>Entry.</strong> Arrival at the (only) greeting screen — log empty, status region
+      empty, Name field empty, no alert, no clear control.</li>
+    <li><strong>Exit.</strong> None this feature adds. The visit — and everything this feature
+      built during it — ends only when the visitor leaves or reloads (Story 3, "fresh visit");
+      there is no in-app "done" action beyond clearing the log itself.</li>
+    <li><strong>Success metric.</strong> A visitor can name every greeting they have received this
+      visit, in order, and clear the greeting log, in one activation each, without being told how
+      — i.e. the Handoff AC in §7 holds unaided. (Round 2 fix, UX-MOCK: "that list" reintroduced a
+      synonym the seed's Ubiquitous language explicitly rejects — "Not 'history'" — and
+      <code>VERIFY-WITH-HUMAN.md</code> VH-04/VH-05 exist precisely to remove "list" drift from
+      this feature's copy; "the greeting log" is used throughout this section instead.)</li>
+  </ul>
+
+  <h3>2. Primary flow — happy path + recovery</h3>
+  <pre style="background:#fafafa;border:1px solid #ddd;border-radius:4px;padding:1rem;overflow-x:auto;font-size:0.8rem;line-height:1.35;">
+                         ARRIVE (log empty, status empty, no alert, no clear control)
+                                          |
+                                          v
+                          +----------------------------+
+                          |  type a name, submit        |
+                          +----------------------------+
+                             |                     |
+                     name is blank/whitespace   name has content
+                             |                     |
+                             v                     v
+                +----------------------+   +---------------------------------+
+                |  ALERT: "Please      |   |  status region: "Hello, &lt;name&gt;" |
+                |  enter your name."   |   |  log: +1 entry (oldest-first,    |
+                |  greeting UNCHANGED  |   |  entry text = trimmed name)      |
+                |  log UNCHANGED       |   |  clear control: now present      |
+                +----------------------+   +---------------------------------+
+                             |                     |        ^
+                             |  recovery: submit    |        |
+                             |  again with a name   |        | loop: submit again
+                             +----------------------+--------+  (Story 1, repeatable)
+                                          |
+                                          v (log has >=1 entry; clear control present)
+                          +----------------------------+
+                          |  activate the clear control |
+                          +----------------------------+
+                                          |
+                                          v
+                    log -> empty message, status -> not-yet-greeted,
+                    clear control -> removed, Name field UNCHANGED,
+                    a pending alert (if any) is NOT dismissed,
+                    focus -> moves to the log region
+                                          |
+                                          v
+                    back to "log empty" — visitor may greet again (loop to top)
+                                          |
+                                          v (visitor leaves / reloads = fresh visit)
+                    FRESH VISIT: identical to ARRIVE — nothing carried over
+  </pre>
+  <p class="caption">
+    No <em>navigational</em> dead ends: every state above has at least one control that leads
+    somewhere else on the same screen (submit, clear, or submit-again-to-dismiss-the-alert), and
+    every state is reachable from ARRIVE by some path. The alert's only recovery is a further
+    submission (unchanged <code>greet-visitor</code> rule) — clearing is deliberately not a way
+    out of it (Story 2, "Clearing does not dismiss a pending alert").
+    <strong>Round 2 note (UX-FLOW): this is distinct from data loss.</strong> Activating the clear
+    control is irreversible — feature.md Out of scope, "Undoing a clear": "Once Story 2's clear
+    control is activated, the entries and the current greeting are gone; no story adds a way to
+    bring them back." There is no confirmation step and no undo on a control whose own accessible
+    name is still <span class="po-flag">po-proposed, unconfirmed</span>. Reaching a further,
+    navigable screen state after clearing does not undo the loss of the cleared entries — see
+    <code>VERIFY-WITH-HUMAN.md</code> VH-07.
+  </p>
+
+  <h3>3. Information architecture</h3>
+  <ul>
+    <li><strong>Screen inventory.</strong> One screen: the greeting screen, route <code>/</code>.
+      This feature adds no new screen and no new route — the greeting log is a landmark
+      <em>region</em> inside the existing screen, not a page of its own. There is nothing to
+      drill into per entry (seed Out of scope: "Removing, editing or re-greeting from an
+      individual entry"), so there is no per-entry route to design.</li>
+    <li><strong>Nav model.</strong> None — no nav bar, no tabs, no back button beyond the
+      browser's own. "Where am I" is answered by the screen's own heading plus its two labelled
+      regions (<code>role="status"</code>, and the log region named "Greeted this visit"); "where
+      can I go" is answered by the two controls on the screen (submit, and clear once it exists).
+      Deep-linkability: trivially satisfied — the one route (<code>/</code>) carries no
+      log-specific query or hash state, by design (seed Out of scope: "Persisting the log
+      anywhere"; nothing survives a reload to deep-link into).</li>
+    <li><strong>Landmark hierarchy (per screen) — round 2 rewrite (UX-IA).</strong> The shipped
+      <code>App.tsx</code> already renders
+      <code>&lt;main&gt;&lt;header&gt;&lt;h1&gt;sdlc2 lab&lt;/h1&gt;&lt;/header&gt;...&lt;/main&gt;</code>
+      (<code>greet-visitor</code>'s own landmark fix: one <code>&lt;main&gt;</code>, no second
+      landmark). This feature adds the greeting log as a <em>second</em> landmark, nested inside
+      that same <code>&lt;main&gt;</code>, as a sibling of the form and the status region — it
+      does not sit outside <code>&lt;main&gt;</code> and it does not replace the existing single
+      landmark. Concretely: <code>&lt;main&gt;</code> -&gt; <code>&lt;header&gt;&lt;h1&gt;sdlc2
+      lab&lt;/h1&gt;&lt;/header&gt;</code> -&gt; form (Name field + Submit) -&gt; status region
+      (<code>role="status"</code>, unlabelled, not a landmark, still a plain sibling inside
+      <code>&lt;main&gt;</code>) -&gt; log region (<code>role="region"</code>, named "Greeted this
+      visit" via its own <code>h2</code>, also a sibling inside <code>&lt;main&gt;</code>, not
+      nested inside the status region) -&gt; clear control (<code>&lt;button type="button"&gt;</code>
+      — normative, round 2 addition: never the implicit <code>submit</code> default, since the
+      clear control lives in the same <code>&lt;form&gt;</code>-adjacent DOM as the Submit control
+      and an untyped button would submit the form instead of clearing it — inside the log region,
+      present only when the log is non-empty). No heading level is skipped (h1 then h2, never h3 without an
+      intervening h2). <strong>Consequence for landmark navigation:</strong> a screen-reader
+      user who was previously one landmark jump from "the whole page" now has two: jumping to
+      <code>&lt;main&gt;</code> lands before the form as before, and a second landmark jump
+      (region "Greeted this visit") skips straight past the form and the status region to the log
+      — this is new with this feature and is the reason the log needs its own accessible name
+      distinct from <code>&lt;main&gt;</code>'s. See the drawn DOM sketch below.</li>
+  </ul>
+  <div class="variant-note" style="background:#fff;border:1px dashed #999;border-radius:4px;padding:0.75rem 1rem;">
+    <strong>Landmark structure, drawn (arrive state) — resolves "where am I" structurally, not
+    just in prose:</strong>
+    <pre style="background:#fafafa;border:1px solid #ddd;border-radius:4px;padding:0.75rem;overflow-x:auto;font-size:0.78rem;line-height:1.35;margin-top:0.5rem;">&lt;main&gt;                                          &lt;-- landmark 1 (unchanged)
+  &lt;header&gt;&lt;h1&gt;sdlc2 lab&lt;/h1&gt;&lt;/header&gt;
+
+  &lt;form&gt;
+    &lt;label for="name"&gt;Name&lt;/label&gt;
+    &lt;input id="name" type="text" value="" /&gt;
+    &lt;!-- alert (role="alert"), only when present --&gt;
+    &lt;button type="submit"&gt;Greet me&lt;/button&gt;
+  &lt;/form&gt;
+
+  &lt;p role="status"&gt;&lt;!-- "Hello, &lt;name&gt;" or empty --&gt;&lt;/p&gt;
+
+  &lt;section role="region" aria-labelledby="log-h2" tabindex="-1"&gt;  &lt;-- landmark 2 (new this feature)
+    &lt;h2 id="log-h2"&gt;Greeted this visit&lt;/h2&gt;
+    &lt;!-- empty text, OR &lt;ol&gt;&lt;li&gt;...&lt;/li&gt;&lt;/ol&gt; --&gt;
+    &lt;!-- &lt;button type="button"&gt;Clear the log&lt;/button&gt;, only once non-empty --&gt;
+  &lt;/section&gt;
+&lt;/main&gt;</pre>
+    <p style="margin:0.5rem 0 0; font-size:0.8rem;">
+      Every drawn screen below (Stories 1-3) is this same landmark shape at a different state; the
+      illustrative <code>&lt;p class="screen-title" aria-hidden="true"&gt;sdlc2
+      lab&lt;/p&gt;</code> atop each thumbnail stands in for the
+      <code>&lt;main&gt;&lt;header&gt;&lt;h1&gt;</code> block above, deliberately <strong>not</strong>
+      a real, second <code>&lt;h1&gt;</code> — <strong>round 3 fix (UX-A11Y):</strong> a prior round
+      drew it as <code>&lt;h1&gt;</code>, which made this artifact's own emitted heading outline run
+      <code>h1 -&gt; h2 -&gt; h1</code> fifteen times over (this document's real title, then the
+      <code>&sect;</code>-level <code>h2</code>s, then a thumbnail "heading" nested under each one
+      that was never actually a child of a document <code>&lt;main&gt;</code>). It is now a plain,
+      <code>aria-hidden</code> paragraph styled to look like the app's title bar, so it announces
+      nothing to a screen reader and contributes no level to the outline at all; the same convention
+      <code>greet-visitor/mockup.html</code> uses for its own thumbnails.
+    </p>
+  </div>
+
+  <h3>4. State matrix</h3>
+  <p class="caption">
+    Per screen region, not per screen — this feature has exactly one screen, so the unit that
+    varies is the region within it. "Loading" and "over-limit" are marked N/A with the reason
+    they do not apply, rather than left out silently. <strong>Round 2 addition (UX-STATE):</strong>
+    a "Name field" region was missing entirely despite feature.md pinning its state through this
+    feature's most delicate transition ("Clearing does not touch the Name field"); its five states
+    are added below. A "Log region — restarted after a clear" row is also added for Story 2 Sc7,
+    so no implementation can latch a "cleared" flag that permanently suppresses further entries or
+    hides the clear control. <strong>Round 3 addition (UX-STATE):</strong> the Name field's own
+    three N/A rows (loading, error, over-limit) were missing — every other region below states its
+    N/A reason explicitly; the Name field now does too, matching the discipline this caption
+    already commits to. A "Log region — 300-character entry" row is also drawn as an actual panel
+    now (Story 1, below), not only asserted here, and a "Log region — being greeted twice" panel
+    (Story 1 Sc4) closes the one seed Decision ("The log is a sequence, not a set") that previously
+    had no drawn variant.
+  </p>
+  <div class="table-scroll">
+  <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+    <thead>
+      <tr style="background:#eee;text-align:left;">
+        <th style="border:1px solid #ccc;padding:0.4rem;">Region</th>
+        <th style="border:1px solid #ccc;padding:0.4rem;">State</th>
+        <th style="border:1px solid #ccc;padding:0.4rem;">Trigger</th>
+        <th style="border:1px solid #ccc;padding:0.4rem;">DOM shape</th>
+        <th style="border:1px solid #ccc;padding:0.4rem;">Way out / recovery</th>
+        <th style="border:1px solid #ccc;padding:0.4rem;">Story / AC</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Status region</td><td style="border:1px solid #ccc;padding:0.4rem;">Empty (not-yet-greeted)</td><td style="border:1px solid #ccc;padding:0.4rem;">first arrival · after clear · fresh visit</td><td style="border:1px solid #ccc;padding:0.4rem;"><code>role="status"</code>, no text</td><td style="border:1px solid #ccc;padding:0.4rem;">submit a name -&gt; Success</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc2, S2 Sc3, S3</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Status region</td><td style="border:1px solid #ccc;padding:0.4rem;">Success (greeted)</td><td style="border:1px solid #ccc;padding:0.4rem;">successful submit</td><td style="border:1px solid #ccc;padding:0.4rem;">"Hello, &lt;name&gt;"</td><td style="border:1px solid #ccc;padding:0.4rem;">submit again, or clear -&gt; Empty</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc1, Sc3, Sc4, Sc5</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Status region</td><td style="border:1px solid #ccc;padding:0.4rem;">Loading</td><td style="border:1px solid #ccc;padding:0.4rem;">N/A</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">no async call anywhere in this feature (seed: in-memory only, no backend)</td><td style="border:1px solid #ccc;padding:0.4rem;">seed Out of scope</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Log region</td><td style="border:1px solid #ccc;padding:0.4rem;">Empty</td><td style="border:1px solid #ccc;padding:0.4rem;">first arrival · after clear · fresh visit</td><td style="border:1px solid #ccc;padding:0.4rem;">no <code>list</code>; text "You have not been greeted yet."</td><td style="border:1px solid #ccc;padding:0.4rem;">submit a name -&gt; Partial/Success</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc2, S2, S3</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Log region</td><td style="border:1px solid #ccc;padding:0.4rem;">Partial / growing (1..n entries)</td><td style="border:1px solid #ccc;padding:0.4rem;">each successful submit appends</td><td style="border:1px solid #ccc;padding:0.4rem;"><code>ol</code>/<code>li</code>, oldest first, empty text gone</td><td style="border:1px solid #ccc;padding:0.4rem;">submit again (grows), or clear -&gt; Empty</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc1, Sc3, Sc4, Sc5 <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">round 3: Sc5 (trimming) moved here from Held-still</span></td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Log region</td><td style="border:1px solid #ccc;padding:0.4rem;">Held-still (blank/whitespace submit)</td><td style="border:1px solid #ccc;padding:0.4rem;">blank or whitespace-only submit</td><td style="border:1px solid #ccc;padding:0.4rem;">unchanged from whatever it was (Empty or Partial)</td><td style="border:1px solid #ccc;padding:0.4rem;">submit again with a name -&gt; Partial/Success</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc6, Sc7, Sc8 <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">round 3 renumber</span></td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Log region</td><td style="border:1px solid #ccc;padding:0.4rem;">Over-limit</td><td style="border:1px solid #ccc;padding:0.4rem;">N/A</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">no maximum length; log grows without bound (seed Decisions)</td><td style="border:1px solid #ccc;padding:0.4rem;">seed Out of scope</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Alert</td><td style="border:1px solid #ccc;padding:0.4rem;">Absent</td><td style="border:1px solid #ccc;padding:0.4rem;">default; after a valid submit</td><td style="border:1px solid #ccc;padding:0.4rem;">not in the DOM</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">carried from <code>greet-visitor</code></td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Alert</td><td style="border:1px solid #ccc;padding:0.4rem;">Present (error)</td><td style="border:1px solid #ccc;padding:0.4rem;">blank/whitespace submit</td><td style="border:1px solid #ccc;padding:0.4rem;"><code>role="alert"</code>, "Please enter your name."</td><td style="border:1px solid #ccc;padding:0.4rem;">only a further submit dismisses it — <strong>not</strong> the clear control</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc6-Sc8, S2 Sc8 <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">round 3 renumber</span></td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Clear control</td><td style="border:1px solid #ccc;padding:0.4rem;">Absent</td><td style="border:1px solid #ccc;padding:0.4rem;">log is Empty</td><td style="border:1px solid #ccc;padding:0.4rem;">not in the DOM (no disabled button)</td><td style="border:1px solid #ccc;padding:0.4rem;">an entry lands -&gt; Present</td><td style="border:1px solid #ccc;padding:0.4rem;">S2 Sc1, S1 last Sc</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Clear control</td><td style="border:1px solid #ccc;padding:0.4rem;">Present</td><td style="border:1px solid #ccc;padding:0.4rem;">log has &ge;1 entry</td><td style="border:1px solid #ccc;padding:0.4rem;">button, name "Clear the log" (<span class="po-flag">po-proposed, unconfirmed</span>)</td><td style="border:1px solid #ccc;padding:0.4rem;">activate -&gt; log &amp; greeting -&gt; Empty, focus moves to log region. <strong>Irreversible by design</strong> — feature.md Out of scope, "Undoing a clear": no control, on this screen or any other, brings the cleared entries back. This is the destination state's only navigable "way out"; it is not a way back.</td><td style="border:1px solid #ccc;padding:0.4rem;">S2 Sc2, Sc3, Sc4, Sc6</td></tr>
+      <tr><td style="border:1px solid #ccc;padding:0.4rem;">Clear control</td><td style="border:1px solid #ccc;padding:0.4rem;">Loading / pending</td><td style="border:1px solid #ccc;padding:0.4rem;">N/A</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">clearing is a synchronous, local-state update; no network round trip</td><td style="border:1px solid #ccc;padding:0.4rem;">seed Out of scope</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Log region</td><td style="border:1px solid #ccc;padding:0.4rem;">300-character entry (no length limit)</td><td style="border:1px solid #ccc;padding:0.4rem;">visitor submits a 300-char name ("A" x300)</td><td style="border:1px solid #ccc;padding:0.4rem;"><code>&lt;li&gt;</code> holds the full 300-char string, wraps (<code>overflow-wrap: anywhere</code>), no truncation</td><td style="border:1px solid #ccc;padding:0.4rem;">submit again, or clear -&gt; Empty</td><td style="border:1px solid #ccc;padding:0.4rem;">carried unretired AC, <code>greet-visitor</code> Story 1</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Log region</td><td style="border:1px solid #ccc;padding:0.4rem;">Restarted after a clear</td><td style="border:1px solid #ccc;padding:0.4rem;">a successful submit right after a clear</td><td style="border:1px solid #ccc;padding:0.4rem;"><code>ol</code> with exactly one <code>li</code> (the empty message is gone); clear control reappears</td><td style="border:1px solid #ccc;padding:0.4rem;">behaves exactly like first arrival -&gt; Empty gone the moment Story 1's rules apply again</td><td style="border:1px solid #ccc;padding:0.4rem;">S2 Sc7</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Empty on arrival</td><td style="border:1px solid #ccc;padding:0.4rem;">first render · fresh visit</td><td style="border:1px solid #ccc;padding:0.4rem;">value=""</td><td style="border:1px solid #ccc;padding:0.4rem;">visitor types -&gt; Holding a draft</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc2, S3</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Holding an unsubmitted draft</td><td style="border:1px solid #ccc;padding:0.4rem;">visitor types, has not yet submitted</td><td style="border:1px solid #ccc;padding:0.4rem;">value=&lt;typed text&gt;</td><td style="border:1px solid #ccc;padding:0.4rem;">submit -&gt; unchanged (field is never cleared by a submit, per <code>greet-visitor</code>); clear control activated -&gt; Draft survives a clear</td><td style="border:1px solid #ccc;padding:0.4rem;">S2 Sc5</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Draft survives a clear</td><td style="border:1px solid #ccc;padding:0.4rem;">clear control activated while field holds a draft</td><td style="border:1px solid #ccc;padding:0.4rem;">value unchanged — clearing never writes to this field</td><td style="border:1px solid #ccc;padding:0.4rem;">visitor keeps typing or submits</td><td style="border:1px solid #ccc;padding:0.4rem;">S2 Sc5 ("Clearing does not touch the Name field")</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Draft survives a blank/whitespace submission</td><td style="border:1px solid #ccc;padding:0.4rem;">a <em>different</em>, later blank submit while field held prior content</td><td style="border:1px solid #ccc;padding:0.4rem;">value unchanged (only the alert appears)</td><td style="border:1px solid #ccc;padding:0.4rem;">retype and submit a name -&gt; Success</td><td style="border:1px solid #ccc;padding:0.4rem;">S1 Sc6-Sc8 <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">round 3 renumber</span></td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Empty again on a fresh visit</td><td style="border:1px solid #ccc;padding:0.4rem;">visitor leaves / reloads</td><td style="border:1px solid #ccc;padding:0.4rem;">value="" (unmount/remount from initial state)</td><td style="border:1px solid #ccc;padding:0.4rem;">visitor types -&gt; Holding a draft</td><td style="border:1px solid #ccc;padding:0.4rem;">S3, <code>greet-visitor</code> issue 04 (unchanged)</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Loading</td><td style="border:1px solid #ccc;padding:0.4rem;">N/A</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">no async call anywhere in this feature (seed: in-memory only, no backend) — same reason as the Status region's own N/A row above; <strong>round 3 addition (UX-STATE)</strong>, this region was missing its N/A rows entirely</td><td style="border:1px solid #ccc;padding:0.4rem;">seed Out of scope</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Error / invalid</td><td style="border:1px solid #ccc;padding:0.4rem;">N/A</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">the field itself never carries an error state (no red border, no <code>aria-invalid</code>); a blank/whitespace submission surfaces the error on the separate Alert region instead (see Alert rows above), never on the field — carried unchanged from <code>greet-visitor</code>; <strong>round 3 addition (UX-STATE)</strong></td><td style="border:1px solid #ccc;padding:0.4rem;"><code>greet-visitor</code> Story 3 (unchanged)</td></tr>
+      <tr style="background:#fafcff;"><td style="border:1px solid #ccc;padding:0.4rem;">Name field</td><td style="border:1px solid #ccc;padding:0.4rem;">Over-limit</td><td style="border:1px solid #ccc;padding:0.4rem;">N/A</td><td style="border:1px solid #ccc;padding:0.4rem;">—</td><td style="border:1px solid #ccc;padding:0.4rem;">no maximum length on the typed value; a 300-char name is a valid entry (see the Log region's own 300-character row above) — carried, unretired AC from <code>greet-visitor</code> Story 1; <strong>round 3 addition (UX-STATE)</strong></td><td style="border:1px solid #ccc;padding:0.4rem;"><code>greet-visitor</code> Story 1 (unchanged)</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>5. Wireframe — block layout, primary action marked</h3>
+  <pre style="background:#fafafa;border:1px solid #ddd;border-radius:4px;padding:1rem;overflow-x:auto;font-size:0.8rem;line-height:1.35;">
+  +-------------------------------------------------------------+
+  | h1  sdlc2 lab                                                |
+  +-------------------------------------------------------------+
+  | form                                                          |
+  |   label  Name                                                |
+  |   [ text input........................................ ]     |
+  |   ( alert, only while an error is pending )                   |
+  |   ( * PRIMARY ACTION * )  [ Greet me ]  <- submit             |
+  +-------------------------------------------------------------+
+  | role=status   "Hello, &lt;name&gt;"  (or empty)                    |
+  +-------------------------------------------------------------+
+  | region: "Greeted this visit"  (landmark, tabindex=-1)          |
+  |   h2  Greeted this visit                                       |
+  |   ---- EMPTY shape ---------------  OR  ---- LIST shape ------ |
+  |   "You have not been greeted yet."      1. Ada                |
+  |                                          2. Grace              |
+  |                                          3. Alan               |
+  |   ( no button here )                    ( secondary action )   |
+  |                                          [ Clear the log ]     |
+  +-------------------------------------------------------------+
+  </pre>
+  <p class="caption">
+    One primary action per screen: "Greet me" (submit) is the only always-present, unmissable
+    call to action. "Clear the log" is a secondary action, visible only once it has something to
+    act on — it never competes with submit because the two are never the obvious next step at the
+    same time for a visitor who has nothing to clear yet.
+  </p>
+
+  <h3>6. A11y &amp; responsive notes</h3>
+  <ul>
+    <li><strong>Heading order — round 3 fix (UX-A11Y), now matches this document's own emitted
+      outline, not just the shipped app's.</strong> In the shipped app: <code>h1</code> "sdlc2 lab"
+      (the app's own title, in its <code>&lt;header&gt;</code>) -&gt; <code>h2</code> "Greeted this
+      visit" (the log region's own accessible name, realized by a visible heading). No heading
+      level is skipped; the status region and the alert are landmark-free and headingless by
+      design, matching <code>greet-visitor</code>'s own convention. In <em>this mockup
+      document</em>, that two-level shape is nested one level deeper and repeated once per drawn
+      state: the file's own single real <code>&lt;h1&gt;</code> ("The greeting log — mockup") is
+      followed only by <code>h2</code>s (the experience-spec section, then one per story) and
+      <code>h3</code>s (the experience-spec's seven subsections) — never a second
+      <code>&lt;h1&gt;</code> — so each thumbnail's "sdlc2 lab" title is drawn as a non-heading,
+      <code>aria-hidden</code> paragraph (<code>.screen-title</code>) rather than a competing
+      <code>&lt;h1&gt;</code>, and each thumbnail's own "Greeted this visit" stays an
+      <code>h2</code>, a sibling of the story <code>h2</code> it sits under, not a child
+      <code>h3</code> — because in the real app it <em>is</em> an <code>h2</code>, sibling to the
+      app's own single <code>h1</code>, and this mockup does not want to misrepresent that shape.</li>
+    <li><strong>Landmarks.</strong> The log region is a <code>role="region"</code> landmark named
+      via <code>aria-labelledby</code> pointing at its visible <code>h2</code> — never an
+      <code>aria-label</code> duplicating text that already exists on screen. The status region
+      (<code>role="status"</code>) and the alert (<code>role="alert"</code>) are live regions, not
+      landmarks, and are not part of landmark navigation.</li>
+    <li><strong>Keyboard order (tab order = DOM order).</strong> Name field -&gt; Submit ("Greet
+      me") -&gt; Clear control (only when present; it is the last focusable element, inside the
+      log region, which follows Submit in DOM order) -&gt; (loop). The log region itself is
+      <em>not</em> in the tab order (<code>tabindex="-1"</code>): it only receives focus
+      programmatically, once, immediately after Clear is activated.</li>
+    <li><strong>Visible focus — round 2 fix (UX-A11Y), now drawn in CSS, not only asserted here.
+      </strong> Every focusable control (Name field, Submit, Clear) keeps a visible focus
+      indicator at all times — never <code>outline: none</code> with nothing in its place; this
+      file's own <code>&lt;style&gt;</code> now demonstrates it too —
+      <code>input[type="text"]:focus-visible, button:focus-visible { outline: 2px solid #1a1a1a;
+      outline-offset: 2px; }</code> — reusing the two normative tokens
+      <code>greet-visitor/mockup.html</code> already fixed: <code>--focus-ring-width: 2px</code>
+      and <code>--focus-ring-offset: 2px</code>. The log region, though not tab-reachable, must
+      also show a visible focus indicator when it receives programmatic focus after clearing —
+      drawn here as <code>.greeting-log:focus { outline: 2px solid #1a1a1a; outline-offset: 2px;
+      }</code>, deliberately <code>:focus</code> and not <code>:focus-visible</code>, because a
+      script-driven <code>.focus()</code> call on a <code>tabindex="-1"</code> element does not
+      match <code>:focus-visible</code> in Chromium — so a sighted keyboard user must still see
+      where focus landed. Story 2's "after clearing" panel below carries a
+      <code>.demo-focus</code> class that applies the same rule permanently, since a static
+      document cannot hold real browser focus.</li>
+    <li><strong>Never colour alone.</strong> Empty vs. non-empty log is distinguished by text
+      content and DOM shape (paragraph vs. list), never by colour. The alert is distinguished by
+      its <code>role="alert"</code> and its text, never by colour alone — consistent with
+      <code>greet-visitor</code>'s own "text, not colour" constraint (that feature's VH-07).</li>
+    <li><strong>Contrast.</strong> Log entry text, the empty-log message, and the alert text each
+      need to meet 4.5:1 against their background; the exact tokens are frontend-design's call,
+      not invented here.</li>
+    <li><strong>Responsive — round 2 fix (UX-A11Y), normative constraint replacing an untested
+      claim.</strong> Single fluid column at every width, one breakpoint (none). Normative
+      constraint: at a 320px viewport (WCAG 1.4.10 Reflow) no element on this screen causes
+      horizontal page scrolling — the Name field and buttons are already <code>box-sizing:
+      border-box</code> with fluid widths; the greeting, the alert and every log entry now carry
+      <code>overflow-wrap: anywhere; word-break: break-word; max-width: 100%;</code> so a 300-char
+      name (the carried, unretired no-length-limit AC) wraps inside its container instead of
+      forcing the page wider; the §4 state matrix is wrapped in its own <code>.table-scroll</code>
+      (<code>overflow-x: auto</code>) so a wide table scrolls inside its own box, exactly as
+      <code>greet-visitor/mockup.html</code> already does for its own matrix.</li>
+    <li><strong>Target size — round 2 addition (UX-A11Y).</strong> Every interactive control —
+      Submit and the new Clear control alike — meets WCAG 2.5.5 (&ge;44&times;44px). Normative
+      token for frontend-design: <code>--control-min-target: 44px</code>, drawn here as
+      <code>button { min-height: 44px; min-width: 44px; }</code>.</li>
+    <li><strong>Reduced motion.</strong> No motion is introduced by this feature (no animated
+      list insertion, no transition on clear) — nothing to gate behind
+      <code>prefers-reduced-motion</code>.</li>
+  </ul>
+
+  <h3>7. Handoff AC — what the RTL/Vitest layer must prove</h3>
+  <p class="caption">
+    <strong>Round 2 fixes (UX-MOCK, UX-A11Y):</strong> the heading named "Playwright," a tool this
+    repo's CLAUDE.md rules out ("Deliberately not Spring Boot, Cucumber or Playwright") in favour
+    of "React Testing Library + user-event via Vitest (jsdom)" — corrected above. Each item below
+    is now restated as a DOM-observable assertion tagged with the <code>feature.md</code> scenario
+    it proves, per this repo's own convention ("behaviour through the rendered DOM — roles and
+    accessible names, never implementation details"); items that were previously unfalsifiable
+    ("at a glance," "clearly labelled," "without being told where to look") are rewritten in terms
+    of roles, accessible names and presence/absence instead.
+  </p>
+  <ol>
+    <li><strong>[S1 Sc1, Sc3]</strong> The greeting log region
+      (<code>getByRole('region', { name: 'Greeted this visit' })</code>) contains an ordered list
+      whose <code>listitem</code>s' text content, read in DOM order, is exactly every name
+      submitted this visit, oldest first — proving a visitor can read back every greeting without
+      any assertion depending on visual position.</li>
+    <li><strong>[S1 Sc2, Contract vocabulary "two DOM shapes"]</strong> Whether the visitor has
+      been greeted yet is distinguishable purely from DOM shape, not colour: empty is "no element
+      with role <code>list</code>" plus the exact text "You have not been greeted yet."; non-empty
+      is an <code>&lt;ol&gt;</code> of entries with that text absent — the two shapes are mutually
+      exclusive, never layered, and the log never renders a count (seed Out of scope).</li>
+    <li><strong>[S2 Sc1, Sc2, Sc4, Sc6]</strong> The clear control
+      (<code>getByRole('button', { name: 'Clear the log' })</code>) exists in the DOM only while
+      <code>within(logRegion).getAllByRole('listitem')</code> is non-empty
+      (<code>queryByRole</code> resolves to <code>null</code> otherwise), and
+      <code>expect(logRegion).toHaveFocus()</code> holds immediately after it is activated.</li>
+    <li>A blank or whitespace-only submission never silently corrupts the log or the on-screen
+      greeting: the alert appears, and everything else — log, greeting, Name field — holds
+      exactly still (S1 Sc6-Sc8).</li>
+    <li>Clearing never dismisses an unrelated pending alert, and never touches the Name field's
+      draft — only the log and the greeting move (S2 Sc5, Sc8).</li>
+    <li>Leaving and returning (a fresh visit) always starts from the same clean slate as the very
+      first visit — no entry, no clear control, ever survives across visits (S3 Sc1, Sc2).</li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<!-- Story 1 — See the greeting log grow (SKELETON)                -->
+<!-- ============================================================ -->
+<section class="story">
+  <h2>Story 1 — See the greeting log grow <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">SKELETON</span></h2>
+  <p class="caption">
+    As a visitor, I want every greeting I receive this visit added to a log I can see, so that I
+    can look back at everyone I've been greeted as, not just the most recent one. The walking
+    skeleton is the left panel arriving, then one greeting landing in the log. The middle panel
+    deepens it with two more greetings, showing the log reading oldest first (three entries: an
+    appended entry never moves an existing one) and the on-screen greeting doubling as the log's
+    own newest entry. The right panel is the "blank submission" edge case: an alert appears, but
+    neither the greeting nor the log changes.
+  </p>
+  <div class="before-after">
+    <div class="panel">
+      <div class="label">Arrival — before any greeting</div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-before">Name</label>
+            <input type="text" id="s1-name-before" value="">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting empty" role="status"></p>
+        <p class="region-note">Status region: present, holds no text.</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-before" tabindex="-1">
+          <h2 id="s1-log-heading-before">Greeted this visit</h2>
+          <p class="empty-text">You have not been greeted yet.</p>
+        </section>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">After being greeted "Ada", "Grace", then "Alan"</div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-after">Name</label>
+            <input type="text" id="s1-name-after" value="Alan">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Alan</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-after" tabindex="-1">
+          <h2 id="s1-log-heading-after">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+            <li>Grace</li>
+            <li>Alan</li>
+          </ol>
+        </section>
+        <p class="region-note">Oldest first; the newest entry ("Alan") matches the greeting above. (The clear control arrives with Story 2, not drawn here.)</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">After a blank submission — alert shown, log unchanged <span class="po-flag" style="background:#fee;color:#611;border-color:#c99;">Sc6</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-blank">Name</label>
+            <input type="text" id="s1-name-blank" value="" aria-describedby="s1-alert">
+            <p class="error" id="s1-alert" role="alert">Please enter your name.</p>
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Ada</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-blank" tabindex="-1">
+          <h2 id="s1-log-heading-blank">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+          </ol>
+        </section>
+        <p class="region-note">Greeting and log both still read "Ada" — a blank submission is not a greeting, so it touches neither. (The clear control arrives with Story 2, not drawn here.)</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Walking skeleton — the log gains its first entry <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">SKELETON, Sc1</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-first">Name</label>
+            <input type="text" id="s1-name-first" value="Ada">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Ada</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-first" tabindex="-1">
+          <h2 id="s1-log-heading-first">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+          </ol>
+        </section>
+        <p class="region-note">The smallest success state: one entry, matching the greeting above. This is the walking skeleton's own scenario — proves Arrive -&gt; Be greeted -&gt; Read back the log end to end before any of the three is deepened.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Blank submission on a log that is still empty <span class="po-flag" style="background:#fee;color:#611;border-color:#c99;">Sc8, error, no way in yet</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-blank-empty">Name</label>
+            <input type="text" id="s1-name-blank-empty" value="" aria-describedby="s1-alert-empty">
+            <p class="error" id="s1-alert-empty" role="alert">Please enter your name.</p>
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting empty" role="status"></p>
+        <p class="region-note">Status region: still present, still no text.</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-blank-empty" tabindex="-1">
+          <h2 id="s1-log-heading-blank-empty">Greeted this visit</h2>
+          <p class="empty-text">You have not been greeted yet.</p>
+        </section>
+        <p class="region-note">No clear control — a blank submission never creates the log's first entry, so there is still nothing to clear. This is the one cell "blank &times; log state" the other two blank scenarios cannot reach on their own (Story 1's last scenario).</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Round 3 addition (UX-STATE) — being greeted as the same name twice produces two entries <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">Sc4</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-dup">Name</label>
+            <input type="text" id="s1-name-dup" value="Ada">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Ada</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-dup" tabindex="-1">
+          <h2 id="s1-log-heading-dup">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+            <li>Ada</li>
+          </ol>
+        </section>
+        <p class="region-note">The log is a sequence, not a set (feature.md, Decisions: "The log is a
+          sequence, not a set"). Being greeted as "Ada" twice produces two separate list items
+          reading "Ada", not one merged entry and not a de-duplicated single row — the trap this
+          panel rules out. The status region still shows only the newest greeting, "Hello, Ada,"
+          exactly like any other successful submit. (The clear control arrives with Story 2, not
+          drawn here.)</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Round 2 addition (UX-STATE) — a name with tabs around it is trimmed before the entry is added <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">Sc5 <span style="font-weight:normal;">(round 3 renumber, was mislabelled Sc4)</span></span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-tabs">Name</label>
+            <input type="text" id="s1-name-tabs" value="&#9;Ada&#9;">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Ada</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-tabs" tabindex="-1">
+          <h2 id="s1-log-heading-tabs">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+          </ol>
+        </section>
+        <p class="region-note">The Name field is drawn holding the untrimmed value (tab, "Ada", tab — shown here as visible padding around the letters) while the greeting and the log entry both read the trimmed "Ada" — the divergence a developer could get wrong by trimming only for display, or not at all, without this panel to check against.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Round 2 addition (UX-STATE) — a whitespace-only submission, distinct from a blank one <span class="po-flag" style="background:#fee;color:#611;border-color:#c99;">Sc7 <span style="font-weight:normal;">(round 3 renumber, was mislabelled Sc6)</span></span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-whitespace">Name</label>
+            <input type="text" id="s1-name-whitespace" value="   " aria-describedby="s1-alert-whitespace">
+            <p class="error" id="s1-alert-whitespace" role="alert">Please enter your name.</p>
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Ada</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-whitespace" tabindex="-1">
+          <h2 id="s1-log-heading-whitespace">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+          </ol>
+        </section>
+        <p class="region-note">The Name field here holds three spaces, not nothing — visibly different from the blank-field panel above, and the one case that catches an implementation keying "blank" off the raw field value instead of the trimmed one. Greeting and log both still read "Ada," exactly as the blank-submission panel above.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Round 3 addition (UX-STATE) — a 300-character entry, no length limit <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">carried, unretired AC — greet-visitor Story 1</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s1-name-long">Name</label>
+            <input type="text" id="s1-name-long" value="AdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAda">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, AdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAda</p>
+
+        <section class="greeting-log" aria-labelledby="s1-log-heading-long" tabindex="-1">
+          <h2 id="s1-log-heading-long">Greeted this visit</h2>
+          <ol>
+            <li>AdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAdaAda</li>
+          </ol>
+        </section>
+        <p class="region-note">300 characters, no truncation, no maximum length (seed Decisions;
+          carried, unretired AC from <code>greet-visitor</code> Story 1). The <code>&lt;li&gt;</code>
+          holds the full string and wraps under <code>overflow-wrap: anywhere</code> instead of
+          overflowing its container or forcing the page wider (see &sect;6, Responsive) — the same
+          rule applies to the status region and the Name field's own value above it, so the
+          wrap-vs-truncate decision is drawn here, not only asserted in the &sect;4 state matrix
+          row it satisfies.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Story 2 — Clear the greeting log                               -->
+<!-- ============================================================ -->
+<section class="story">
+  <h2>Story 2 — Clear the greeting log</h2>
+  <p class="caption">
+    As a visitor, I want to clear the greeting log when I'm done with it, so that the greeting log
+    and the current greeting go back to how they looked before I was greeted at all — not the
+    whole screen, which may still be showing an unrelated alert or an unsubmitted draft in the
+    Name field. The Name field keeps whatever draft the visitor typed ("Priya" here, unsubmitted —
+    round 3 fix, UX-MOCK: deliberately a name that appears in <em>no</em> log entry below, so the
+    draft is visibly not itself a greeting, unlike a prior round's "Ada" draft sitting beside an
+    "Ada" log entry) — clearing touches only the log and the greeting.
+  </p>
+  <div class="before-after">
+    <div class="panel">
+      <div class="label">Before clearing — two entries, clear control present</div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s2-name-before">Name</label>
+            <input type="text" id="s2-name-before" value="Priya">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Grace</p>
+
+        <section class="greeting-log" aria-labelledby="s2-log-heading-before" tabindex="-1">
+          <h2 id="s2-log-heading-before">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+            <li>Grace</li>
+          </ol>
+          <button type="button" class="clear-control">Clear the log</button>
+        </section>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">After clearing — not-yet-greeted appearance restored</div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s2-name-after">Name</label>
+            <input type="text" id="s2-name-after" value="Priya">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting empty" role="status"></p>
+        <p class="region-note">Status region: back to present, no text — same as first arrival.</p>
+
+        <section class="greeting-log demo-focus" aria-labelledby="s2-log-heading-after" tabindex="-1">
+          <h2 id="s2-log-heading-after">Greeted this visit</h2>
+          <p class="empty-text">You have not been greeted yet.</p>
+        </section>
+        <p class="region-note"><span class="focus-note">focus moves here (Sc6) — the outline drawn around the region above is <code>.demo-focus</code>, a round 2 addition standing in for the browser's own <code>:focus</code> ring, since a static document cannot hold real focus</span> No clear control — nothing left to clear. Name field still reads "Priya" (the visitor's draft, untouched by clearing — round 3 fix, UX-MOCK: this string never appeared as a log entry in the panel to the left, so it is unambiguously a draft, not a leftover greeting).</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Clearing does not dismiss a pending alert <span class="po-flag" style="background:#fee;color:#611;border-color:#c99;">recovery boundary, Sc8</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s2-name-alert">Name</label>
+            <input type="text" id="s2-name-alert" value="" aria-describedby="s2-alert">
+            <p class="error" id="s2-alert" role="alert">Please enter your name.</p>
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting empty" role="status"></p>
+
+        <section class="greeting-log demo-focus" aria-labelledby="s2-log-heading-alert" tabindex="-1">
+          <h2 id="s2-log-heading-alert">Greeted this visit</h2>
+          <p class="empty-text">You have not been greeted yet.</p>
+        </section>
+        <p class="region-note"><span class="focus-note">focus moves here — round 3 fix (UX-A11Y): the <code>.demo-focus</code> ring was missing on this panel, though it is a post-clear state exactly like its sibling to the left</span> Log and greeting are cleared exactly as in the panel to the left — but the alert from the blank submission that happened just before clearing is still present. Clearing acts only on the log and the greeting, never on the alert; only a further submission dismisses it (unchanged <code>greet-visitor</code> rule).</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Round 2 addition (UX-STATE) — a greeting after clearing restarts the greeting log <span class="po-flag" style="background:#eef;color:#1a1a1a;border-color:#99c;">Sc7</span></div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s2-name-restart">Name</label>
+            <input type="text" id="s2-name-restart" value="Grace">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Grace</p>
+
+        <section class="greeting-log" aria-labelledby="s2-log-heading-restart" tabindex="-1">
+          <h2 id="s2-log-heading-restart">Greeted this visit</h2>
+          <ol>
+            <li>Grace</li>
+          </ol>
+          <button type="button" class="clear-control">Clear the log</button>
+        </section>
+        <p class="region-note">Starting from the "after clearing" panel above (log empty, no clear control), the visitor types "Grace" and submits: the log gains exactly one entry, oldest first, and the clear control reappears — behaving exactly like Story 1's first-entry panel, not a permanently suppressed or "stuck cleared" state. This closes the gap no implementation may exploit: latching a flag that blocks further entries or hides the clear control forever once a clear has happened once.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- Story 3 — A fresh visit starts with an empty log               -->
+<!-- ============================================================ -->
+<section class="story">
+  <h2>Story 3 — A fresh visit starts with an empty log</h2>
+  <p class="caption">
+    As a visitor, I want a fresh visit to start with an empty greeting log, so that nothing
+    another visit left behind — an entry, a clear control — is still there when I arrive again.
+    (The Name field's own fresh-visit guarantee is a separate, already-shipped promise —
+    `greet-visitor` issue 04 — unchanged and untouched by this feature.) The left panel is the end
+    of one visit; the right panel is the very next visit, identical to Story 1's own arrival
+    state.
+  </p>
+  <div class="before-after">
+    <div class="panel">
+      <div class="label">End of a visit — two entries, clear control present</div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s3-name-before">Name</label>
+            <input type="text" id="s3-name-before" value="Grace">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting" role="status">Hello, Grace</p>
+
+        <section class="greeting-log" aria-labelledby="s3-log-heading-before" tabindex="-1">
+          <h2 id="s3-log-heading-before">Greeted this visit</h2>
+          <ol>
+            <li>Ada</li>
+            <li>Grace</li>
+          </ol>
+          <button type="button" class="clear-control">Clear the log</button>
+        </section>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">A fresh visit — clean slate, nothing carried over</div>
+      <div class="screen">
+        <p class="screen-title" aria-hidden="true">sdlc2 lab</p>
+        <form>
+          <div class="field-row">
+            <label for="s3-name-after">Name</label>
+            <input type="text" id="s3-name-after" value="">
+          </div>
+          <button type="submit">Greet me</button>
+        </form>
+        <p class="greeting empty" role="status"></p>
+
+        <section class="greeting-log" aria-labelledby="s3-log-heading-after" tabindex="-1">
+          <h2 id="s3-log-heading-after">Greeted this visit</h2>
+          <p class="empty-text">You have not been greeted yet.</p>
+        </section>
+        <p class="region-note">No entries, no clear control — this feature's own guarantee. The empty Name field shown here is `greet-visitor` issue 04's existing, already-shipped guarantee, not part of this feature — identical to Story 1's arrival panel.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

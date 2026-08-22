@@ -1,6 +1,15 @@
 # ADR-0002 — Store the submitted name; derive the greeting text
 
-- **Status:** Proposed — accepted pending the human VERIFY gate (no code exists yet; the chosen copy also depends on VH-03, still open)
+- **Status:** Accepted — the decision is in the code (`src/visit.ts`, `src/GreetingScreen.tsx`) —
+  and **superseded in part by
+  [ADR-0011](0011-greeting-derived-from-the-newest-log-entry.md)** (`greeting-log`, 2026-08-22).
+  What is superseded is the *stored field*: `Visit.greetedName` is deleted, and `greetingText` now
+  derives the greeting from the greeting log's newest entry. What **stands**, unchanged and in fact
+  applied one level further, is this ADR's rule — the greeting is derived, never stored, so there is
+  no second source of truth to drift — along with its `string`-not-branded-type modelling choice and
+  its trimming rule. Originally: *Proposed — accepted pending the human VERIFY gate (the chosen copy
+  also depended on `greet-visitor` VH-03, since resolved by the human in that feature's VH-15 —
+  "Greet me" confirmed, the alert shortened).*
 - **Date:** 2026-08-15
 - **Feature:** `greet-visitor` (`.sdlc2/features/greet-visitor/design.md` §2.3, §4.1)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)
