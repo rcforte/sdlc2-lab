@@ -925,4 +925,94 @@ describe('Greeting screen', () => {
     // association and leave the message floating unattached beside an input.
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(ALERT_TEXT)
   })
+
+  // ---------------------------------------------------------------------------------------
+  // greeting-log issue 03 — A fresh visit starts with an empty log. One acceptance test per
+  // Gherkin scenario, both driven through render(<GreetingScreen />) (design.md §5.1, ADR-0015).
+  //
+  // A guard slice by design (design.md §5.1, the same rule ADR-0007 set for `greet-visitor`
+  // issue 04): the greeting log lives inside Visit, and Visit has lived in a component-local
+  // useState since slice 01 (INV-6a), so both scenarios pass on their first run and no
+  // production code is expected. That is what makes them worth writing, not what makes them
+  // decoration — the guarantee is currently free, and nothing but these two tests would notice
+  // the day it stops being. They were mutation-probed before this slice was committed: hoisting
+  // `visit` out of the component into a module-level binding — the realistic regression, and the
+  // shape a "keep the log across renders" optimisation would take — turns both of them red, and
+  // red for the right reason. Each fails at its "the greeting log is empty" step with the
+  // *previous* visit's entries still listed (`expected <ol><li>Ada</li><li>Grace</li></ol> to be
+  // null`, and `<ol><li>Grace</li></ol>` for the after-a-clear scenario), which is precisely the
+  // leak the issue names. Seventeen older tests go red with them, since module-level state also
+  // leaks between tests — so it is the *reason* above, not the count, that says these two are
+  // the ones pinning a fresh visit's log.
+  //
+  // The same red bar would follow from a store above the screen, a context, or a write to
+  // localStorage/sessionStorage that satisfies issue 01's scenarios in isolation while leaking
+  // across visits. The fix is always structural — put the log back inside
+  // useState<Visit>(newVisit) — never clearing-on-mount layered over state that leaked.
+  //
+  // They reuse startAFreshVisit above rather than restating it, so this feature's fresh visit
+  // and `greet-visitor`'s are literally the same act: unmount, then render again from the
+  // initial state (the Fresh visit Contract vocabulary term). jsdom implements no navigation and
+  // no reload, so real reload-survival in a browser stays a human check (`greet-visitor` VH-02),
+  // unchanged by this feature. Nothing here re-tests the Name field, the greeting or the alert
+  // on a fresh visit: those are `greet-visitor` issue 04's two guards, above, untouched.
+  // ---------------------------------------------------------------------------------------
+
+  // Scenario: A fresh visit starts with an empty greeting log.
+  it('starts with an empty greeting log on a fresh visit', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" and then "Hello, Grace" this visit
+    const { unmount } = render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await beGreeted(user, 'Grace')
+    // Both things the fresh visit has to discard are asserted before it happens, so neither Then
+    // below can pass against a visit that was already clean: the log really did hold two
+    // entries, and the clear control really was on screen to be carried over.
+    expectTheGreetingLogToRead('Ada', 'Grace')
+    expect(clearControl()).toBeInTheDocument()
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the greeting log is empty — no list at all, and the empty message back in words. The
+    // named step resolves the region with getByRole, so a log that failed to render on the
+    // remount fails loudly here instead of passing as "no entries".
+    expectTheGreetingLogToBeEmpty()
+    // And the clear control is not present. Asserted twice, exactly as issue 01's and issue 02's
+    // scenarios do: under the po-proposed name (VH-01/04/05), and as "the submit control is the
+    // only control on the screen", which holds whatever the clear control ends up being called.
+    expect(clearControl()).toBeNull()
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Greet me'])
+  })
+
+  // Scenario: A fresh visit starts with an empty greeting log even after a clear in the previous
+  // visit. Not a duplicate of the scenario above: the log this fresh visit must discard was
+  // built *after* a clear, which is the one cell the first scenario structurally cannot reach.
+  // An implementation that carried a "cleared" flag across visits, or that discarded only a log
+  // the visitor had never cleared, passes above and fails here.
+  it('starts with an empty greeting log on a fresh visit after a clear in the previous visit', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has already been greeted "Hello, Ada" this visit
+    const { unmount } = render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    // And the visitor activated the clear control
+    await activateTheClearControl(user)
+    expectTheGreetingLogToBeEmpty()
+    // And the visitor was then greeted "Hello, Grace" this visit
+    await beGreeted(user, 'Grace')
+    // The Given again asserted in full before the fresh visit: one entry, and the control back.
+    expectTheGreetingLogToRead('Grace')
+    expect(clearControl()).toBeInTheDocument()
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the greeting log is empty
+    expectTheGreetingLogToBeEmpty()
+    // And the clear control is not present
+    expect(clearControl()).toBeNull()
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Greet me'])
+  })
 })
