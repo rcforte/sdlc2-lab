@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saved at — mockup</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+  }
+  h1.page-title {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+  p.intro {
+    color: #444;
+    max-width: 70ch;
+    margin: 0 0 2rem;
+  }
+  .story {
+    max-width: 640px;
+    margin: 0 auto 2.5rem;
+  }
+  .story h2 {
+    font-size: 1rem;
+    margin: 0 0 0.25rem;
+  }
+  .story .caption {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+  .screen {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+    box-sizing: border-box;
+  }
+  .screen .app-heading {
+    font-size: 0.95rem;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 0.6rem;
+    margin: 0 0 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid #595959;
+    border-radius: 3px;
+    margin-bottom: 0.4rem;
+  }
+  .hint {
+    font-size: 0.85rem;
+    color: #333;
+    margin: 0 0 0.75rem;
+  }
+  button {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #333;
+    border-radius: 3px;
+    background: #eee;
+    cursor: default;
+  }
+  form button {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+  .status-region {
+    margin: 1rem 0 0;
+    padding: 0.5rem 0;
+    min-height: 1.2rem;
+    font-weight: bold;
+  }
+  .alert {
+    color: #7a0000;
+    font-size: 0.9rem;
+    margin: 0 0 0.5rem;
+  }
+  .saved-names-region {
+    margin-top: 1.25rem;
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+  }
+  .saved-names-region h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+    margin: 0 0 0.5rem;
+  }
+  .saved-names-region .empty {
+    margin: 0 0 0.75rem;
+  }
+  .saved-names-region .refusal {
+    margin: 0 0 0.75rem;
+    color: #7a0000;
+    font-weight: bold;
+  }
+  .sort-control {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+  }
+  .sort-control input {
+    margin: 0;
+  }
+  ul.rows {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+  }
+  ul.rows li.row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  ul.rows li.row:last-child {
+    border-bottom: none;
+  }
+  .row .row-left {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .row .row-name {
+    font-weight: bold;
+    min-width: 3.5rem;
+  }
+  .row .row-age {
+    font-size: 0.8rem;
+    color: #555;
+  }
+  .row .row-time {
+    /* Visually-hidden technique: present to assistive technology, not rendered on screen. In the
+       real app this is the "stable absolute time" a screen reader gets in the age reading's
+       place (feature.md, story 01) — shown here in the mockup as visible, muted text so a
+       reviewer can see what it says, since a real visually-hidden clip would render nothing. */
+    font-size: 0.72rem;
+    color: #888;
+    font-style: italic;
+  }
+  .row .row-marker {
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: #1a4fd6;
+    border: 1px solid #1a4fd6;
+    border-radius: 3px;
+    padding: 0.05rem 0.35rem;
+  }
+  .row .row-controls button {
+    margin-left: 0.4rem;
+  }
+  .save-control {
+    margin-top: 0.25rem;
+  }
+  .role-note {
+    font-size: 0.75rem;
+    /* #888 on #fff measures ~3.5:1, below the 4.5:1 WCAG AA text floor. #595959 measures ~7:1. */
+    color: #595959;
+    margin-top: 0.5rem;
+  }
+  .is-focused {
+    outline: 3px solid #1a4fd6;
+    outline-offset: 2px;
+  }
+
+  /* ---- UX addendum: overview, IA, state matrix, variant screens ---- */
+  .ux-section {
+    max-width: 880px;
+    margin: 0 auto 2.5rem;
+  }
+  .ux-section h2 {
+    font-size: 1.05rem;
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 0.35rem;
+    margin: 0 0 0.75rem;
+  }
+  .ux-section h3 {
+    font-size: 0.95rem;
+    margin: 1.25rem 0 0.4rem;
+  }
+  .ux-section p, .ux-section li {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .skiplist {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    max-width: 880px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .skiplist a {
+    font-size: 0.8rem;
+    background: #eee;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 0.2rem 0.5rem;
+    color: #1a1a1a;
+    text-decoration: none;
+  }
+  .skiplist a:focus, .ux-section a:focus, .storylink:focus {
+    outline: 3px solid #1a4fd6;
+    outline-offset: 2px;
+  }
+  pre.flow {
+    background: #1a1a1a;
+    color: #e8e8e8;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin: 0 0 1rem;
+  }
+  table.matrix caption {
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-bottom: 0.4rem;
+  }
+  table.matrix th, table.matrix td {
+    border: 1px solid #ccc;
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.matrix th {
+    background: #eee;
+  }
+  table.matrix tr.state-na td {
+    color: #595959;
+    font-style: italic;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: bold;
+    background: #eee;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    margin: 0 0.25rem 0.25rem 0;
+  }
+  .variant-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  .variant-row .screen {
+    flex: 1 1 280px;
+    min-width: 260px;
+  }
+  .a11y-list li {
+    margin-bottom: 0.4rem;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Saved at — UX spec &amp; mockup</h1>
+<p class="intro">
+  One screen per user story's happy-path scenario (feature.md, User stories), extended below with
+  the flow, information architecture, full state matrix, and a labelled variant screen for every
+  state the seed and the product brief describe. Lo-fi, self-contained, no build step. Every
+  control named by an acceptance criterion is present on its story's screen. The two row controls
+  carried over from <code>remembered-names</code> — "Greet me again as &lt;name&gt;" and "Remove
+  &lt;name&gt;" — appear on every screen, since every screen here depicts the same finished Saved
+  names region, only with different data.
+</p>
+
+<ul class="skiplist" aria-label="Jump to section">
+  <li><a href="#ux-overview">Experience overview</a></li>
+  <li><a href="#ux-flow">Primary flow</a></li>
+  <li><a href="#ux-matrix">State matrix</a></li>
+  <li><a href="#ux-a11y">A11y &amp; responsive</a></li>
+  <li><a href="#ux-handoff">Handoff AC</a></li>
+  <li><a href="#story-01">Story 01 screen</a></li>
+  <li><a href="#story-02">Story 02 screen</a></li>
+  <li><a href="#story-03">Story 03 screen</a></li>
+  <li><a href="#story-04">Story 04 screen</a></li>
+  <li><a href="#ux-variants">All state-variant screens</a></li>
+</ul>
+
+<!-- ============================================================ -->
+<!-- UX ADDENDUM — added by ux-design, round 1. The four story screens below this section are
+     the product owner's, byte-for-byte, and are not edited. Everything above and below this
+     comment is new. -->
+<section class="ux-section" id="ux-overview" aria-labelledby="ux-overview-h">
+  <h2 id="ux-overview-h">1. Experience summary</h2>
+  <p>
+    <strong>Actor.</strong> The visitor — one person, one visit, carried unchanged from
+    <code>greet-visitor</code>, <code>saved-name</code> and <code>remembered-names</code>. No
+    second actor and no handoff between people exists in this feature.
+  </p>
+  <p>
+    <strong>Job-to-be-done.</strong> Know when each saved name was saved, trust that the answer
+    stays true the longer the visitor sits on the screen, find the most recent save without
+    reading every row, choose newest-first when that view is wanted, and never be confronted with
+    a name saved and forgotten days ago (feature.md, Persona).
+  </p>
+  <p>
+    <strong>Entry.</strong> The screen mounts fresh — a new visit, empty saved-names list, no
+    saved-at moment anywhere yet (seed, Out of scope: Persistence — nothing survives a reload, so
+    every entry is this same empty state). There is no other entry point: no URL parameter, no
+    onboarding step, no prior screen.
+  </p>
+  <p>
+    <strong>Exit.</strong> The tab closes or reloads. This is a deliberate, seed-mandated dead end
+    for the <em>visit</em> (state is not carried anywhere) — it is not a UX dead end, because
+    nothing on screen ever asks the visitor to go anywhere else to finish a task. Every task this
+    screen offers completes on this screen.
+  </p>
+  <p>
+    <strong>Success metric.</strong> A visitor can answer "which name did I save most recently,
+    and how long ago was that" by looking at the screen, without doing arithmetic and without
+    reading documentation (feature.md story 01's own framing). The Handoff AC below turns this
+    into the assertion the end-to-end test proves.
+  </p>
+
+  <h3>Information architecture &amp; navigation model</h3>
+  <p>
+    <strong>One screen, one route.</strong> This is a single-page, single-component experience —
+    there is no router, no second route, and (seed, Out of scope: Persistence) nothing to
+    deep-link back to, since a reload always lands on the same empty entry state. "Where am I" is
+    answered the same way on every state of this one screen: the page's own <code>&lt;h1&gt;</code>
+    (app shell, unchanged by this feature) plus the <code>&lt;h2&gt;</code> "Saved names" landmark
+    that names the one region this feature touches. "Where can I go" is answered by the controls
+    visible in that state — never by a link to another screen, because none exists.
+  </p>
+  <p>
+    <strong>Sort view is UI state, not a route</strong> — deliberately. The seed's own words,
+    "sorting is a view, not a reordering," apply doubly here: newest-first is not a place the
+    visitor navigates to, it is a lens over the one place they already are. It is not
+    deep-linkable and is not meant to be; giving it a URL fragment would imply a destination that
+    contradicts "the visit goes on holding names in the order they were saved" (seed, Agreed
+    scope).
+  </p>
+  <p>
+    <strong>Screen inventory (one entry, many states):</strong>
+  </p>
+  <ul>
+    <li><strong>Saved names screen</strong> (route <code>/</code>) — the Name field, the status
+      region, and the Saved names region. Every state in section 3 below is this one screen with
+      different data and, in two cases (blank-name, full-list), a different message. No second
+      screen exists in this feature.</li>
+  </ul>
+
+  <h3 id="ux-flow">2. Primary flow — happy path and recovery</h3>
+  <p>
+    Step-by-step, left to right through the story map (feature.md), with every recovery path shown
+    as a branch back onto the same screen — never off it.
+  </p>
+  <pre class="flow" tabindex="0" aria-label="ASCII flow diagram, described below for assistive technology">
+[mount] --> Saved names region: EMPTY ("No names saved yet.", no sort control, no marker)
+   |
+   | visitor types a name, activates "Greet me"
+   v
+ blank? --yes--> alert "Please enter your name." (unchanged, carried) --> back to Name field
+   | no
+   v
+status region: "Hello, &lt;name&gt;" --> "Save this name" control appears
+   |
+   | visitor activates "Save this name"
+   v
+ already saved? --yes--> region: "&lt;name&gt; is already saved."
+   |  no                  saved-at moment, marker, sort position, 24h clock: ALL unchanged (PO decision: keep)
+   |                       -----> visitor greets/saves a DIFFERENT name, or removes this row first
+   v
+ list at 5? --yes--> region: "Five names is the limit. Remove one to save another."
+   |  no                 -----> visitor removes a row, or waits for one to fall off (story 04)
+   v
+row added: saved-at = now, age reads "saved just now", marker moves to this row,
+row takes its place in both sort views (oldest-first default; newest-first if checked)
+   |
+   +--> (unprompted, every <=60s while mounted) age reading recomputes from the same
+   |     saved-at moment: "saved just now" -> "saved 1 minute ago" -> ... -> "saved 1 hour ago" -> ...
+   |     stable absolute time in the accessible name never moves.
+   |
+   +--> visitor checks "Newest first" -> display reorders newest-to-oldest; hint text
+   |     ("Saved: ...") stays save-order; unchecking restores oldest-first. No data changes.
+   |
+   +--> visitor activates "Remove &lt;name&gt;" -> row leaves, focus moves to the region,
+   |     region announces new contents, marker re-derives if the removed row wore it,
+   |     a slot frees for another save.
+   |
+   +--> (unprompted, 24h after THIS row's own saved-at moment) row falls off on its own:
+         region announces new contents exactly as a removal would, marker re-derives,
+         a slot frees, but focus is left exactly where it already was (no control was
+         pressed for the visitor to lose their place from).
+   |
+   v
+ list empty again (every row removed or fallen off) --> back to EMPTY state at the top
+</pre>
+  <p>
+    No dead ends: every branch above either lands back on this same screen with a message and a
+    working control, or produces the success row. The two refusals (duplicate, full) are pure
+    recoveries — nothing is lost, the visitor's next action is always available on screen, and
+    both are the two <strong>error states</strong> this screen has. The <strong>empty</strong>
+    state is reachable from mount and from removing/aging out the last row, closing the loop.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01">Story 01 — Every saved name shows when it was saved, and the reading stays honest (walking skeleton)</h2>
+  <p class="caption">
+    Scenario "Two rows' age readings are independent". Ada was saved two minutes ago, Bob just now.
+    Each row's age reading is its own words, in the words a person would use — never a raw
+    timestamp. The small italic text under each name is the row's stable absolute time: in the
+    real app it is not visible on screen, it is what a screen reader hears in the age reading's
+    place, shown here only so a reviewer can see what it says.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01-name">Name</label>
+      <input type="text" id="s01-name" value="" aria-describedby="s01-hint">
+      <p class="hint" id="s01-hint">Saved: Ada, Bob</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 2 minutes ago</span>
+            <span class="row-time">(screen reader hears: 14:20)</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved just now</span>
+            <span class="row-time">(screen reader hears: 14:22)</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Left alone, "saved just now" becomes "saved 1 minute ago" a minute from now, unprompted — the
+      row's stable time never moves.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-02">Story 02 — The most recently saved name is marked</h2>
+  <p class="caption">
+    Scenario "Exactly one row carries the marker at a time". Ada, Bob and Cleo are saved, in that
+    order; Cleo, saved most recently, is the only row labelled "Newest".
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s02-name">Name</label>
+      <input type="text" id="s02-name" value="" aria-describedby="s02-hint">
+      <p class="hint" id="s02-hint">Saved: Ada, Bob, Cleo</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Cleo</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 9 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 4 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Cleo</span>
+            <span class="row-age" aria-hidden="true">saved just now</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+            <button type="button">Remove Cleo</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">Only Cleo's row carries "Newest" — the latest saved-at moment, and only that one.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-03">Story 03 — Sort the list newest-first</h2>
+  <p class="caption">
+    Scenario "Checking 'Newest first' reorders the display". Ada, Bob and Cleo were saved in that
+    order; the visitor has just checked "Newest first", so the region now displays Cleo, Bob, Ada.
+    The Newest marker stays on Cleo's row even though it is already on top — story 03's rule that
+    the marker earns its place in every view.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s03-name">Name</label>
+      <input type="text" id="s03-name" value="" aria-describedby="s03-hint">
+      <p class="hint" id="s03-hint">Saved: Ada, Bob, Cleo</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Cleo</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <div class="sort-control">
+        <input type="checkbox" id="s03-sort" checked>
+        <label for="s03-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Cleo</span>
+            <span class="row-age" aria-hidden="true">saved just now</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+            <button type="button">Remove Cleo</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 4 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 9 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Display order only: the Name field's hint still reads "Saved: Ada, Bob, Cleo" — save order,
+      unchanged by this checkbox.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-04">Story 04 — A saved name older than a day falls off on its own</h2>
+  <p class="caption">
+    Scenario "A saved name falls off once more than a day has passed since it was saved". Ada was
+    saved more than 24 hours ago and has just fallen off with the visitor doing nothing; Bob, saved
+    within the last day, remains and now carries the Newest marker.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s04-name">Name</label>
+      <input type="text" id="s04-name" value="" aria-describedby="s04-hint">
+      <p class="hint" id="s04-hint">Saved: Bob</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 23 hours ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Ada's row is simply gone — no visitor action caused it. The region announced its new contents,
+      the same as it would for a removal, and focus was left exactly where it already was (the Name
+      field), because no control was activated for the visitor to lose their place from.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<section class="ux-section" id="ux-matrix" aria-labelledby="ux-matrix-h">
+  <h2 id="ux-matrix-h">3. State matrix</h2>
+  <p>
+    One screen (the Saved names screen, IA above), every state it can be in. "Loading" has its own
+    row rather than being silently skipped: this screen makes no network call and persists
+    nothing (seed, Out of scope: Persistence), so every transition below — greet, save, remove,
+    toggle sort, a row aging out — is synchronous local state. There is no request for a spinner
+    to cover.
+  </p>
+  <table class="matrix">
+    <caption>Saved names screen — every state, its trigger, what changes on screen, what is
+      announced, and the way out.</caption>
+    <thead>
+      <tr>
+        <th scope="col">Story / AC</th>
+        <th scope="col">State</th>
+        <th scope="col">Trigger</th>
+        <th scope="col">What's shown</th>
+        <th scope="col">Announced / accessible name</th>
+        <th scope="col">Way out</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="tag">carried</span></td>
+        <td>Empty</td>
+        <td>Fresh mount; or the last row was removed/fell off</td>
+        <td>"No names saved yet." No age text, no marker, no sort control (03: "the sort control
+          is absent while nothing is saved").</td>
+        <td>Region announces "No names saved yet."</td>
+        <td>Type a name, "Greet me", "Save this name".</td>
+      </tr>
+      <tr>
+        <td><span class="tag">carried</span></td>
+        <td>Error — blank name</td>
+        <td>"Greet me" submitted with a blank/whitespace name</td>
+        <td><code>role="alert"</code> "Please enter your name." beside the Name field. List
+          untouched.</td>
+        <td><code>role="alert"</code> announces immediately, unprompted focus move.</td>
+        <td>Type a non-blank name, resubmit.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">01</span></td>
+        <td>Success — just saved</td>
+        <td>Save succeeds for a name not already in the list</td>
+        <td>New row, age reading "saved just now", marker moves onto it (02).</td>
+        <td>Row's accessible name carries the stable absolute time only — never "just now".</td>
+        <td>n/a — success.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">01</span></td>
+        <td>Partial — live tick, under an hour</td>
+        <td>&ge;60s elapsed since a row's saved-at moment, screen still mounted, visitor idle</td>
+        <td>Age text recomputes on its own: "saved 1 minute ago" → "saved 2 minutes ago" ... every
+          row ages independently of every other row.</td>
+        <td>Stable absolute time in the accessible name does not move.</td>
+        <td>n/a — informational; visitor may remove or ignore.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">01</span></td>
+        <td>Partial — live tick, over an hour</td>
+        <td>&ge;60 minutes elapsed since a row's saved-at moment</td>
+        <td>"saved 1 hour ago" / "saved N hours ago" (floor of whole hours). Never reaches "day" —
+          the cutoff (04) removes the row first.</td>
+        <td>Stable absolute time unchanged.</td>
+        <td>n/a — informational.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">01 02 03 04</span></td>
+        <td>Error — duplicate save (re-save)</td>
+        <td>Visitor saves a name already in the list</td>
+        <td>Region: "&lt;name&gt; is already saved." Age reading, marker, sort position and the
+          24h clock are ALL unchanged (PO decision: keep, not refresh — this is the one state four
+          stories share, since all four read the same moment).</td>
+        <td>Region announces the refusal text.</td>
+        <td>Greet/save a different name; or remove this row, then save it again for a fresh
+          moment.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">carried</span> <span class="tag">over-limit</span></td>
+        <td>Error — full list (over-limit)</td>
+        <td>Save attempted for a 6th distinct name while 5 are already saved</td>
+        <td>Region: "Five names is the limit. Remove one to save another." No row added; "Save
+          this name" stays present and enabled (P17 — a vanishing/disabled button teaches
+          nothing).</td>
+        <td>Region announces the refusal text.</td>
+        <td>Remove a row to free a slot, or wait for the oldest to fall off (04).</td>
+      </tr>
+      <tr>
+        <td><span class="tag">02</span></td>
+        <td>Success — marker, one row</td>
+        <td>Exactly one saved name</td>
+        <td>That row alone carries the visible text "Newest".</td>
+        <td>Marker is ordinary row text, read like any other content — never colour-only.</td>
+        <td>n/a — success.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">02</span></td>
+        <td>Success — marker moves (write)</td>
+        <td>A second (or later) name is saved</td>
+        <td>Marker leaves the old row, appears on the new row. Old row keeps its own age
+          reading.</td>
+        <td>Region re-announces its new contents (this is a write to the list).</td>
+        <td>n/a — success.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">02</span></td>
+        <td>Recovery — marker after manual removal</td>
+        <td>The row currently wearing "Newest" is removed</td>
+        <td>Marker re-derives onto the next-newest remaining row.</td>
+        <td>Region announces new contents; focus moves to the region (existing rule, unchanged).</td>
+        <td>n/a — automatic recovery, nothing broken.</td>
+      </tr>
+      <tr class="state-na">
+        <td>—</td>
+        <td>Loading</td>
+        <td>—</td>
+        <td colspan="2">N/A by design. No network call and no persistence exist in this feature
+          (seed, Out of scope; ADR-0034/ADR-0035: the domain never reads the clock, transport
+          supplies an already-read instant). Every transition in this table is a synchronous
+          local-state update — there is no async boundary for a loading state to cover.</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><span class="tag">03</span></td>
+        <td>Empty — sort control absent</td>
+        <td>0 saved names</td>
+        <td>No "Newest first" checkbox rendered at all (not disabled — absent, matching P17's
+          reasoning for "Save this name").</td>
+        <td>—</td>
+        <td>Save a name; the control appears.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">03</span></td>
+        <td>Success — oldest-first (default)</td>
+        <td>&ge;1 saved name, "Newest first" unchecked</td>
+        <td>Rows in save order, exactly as the list read before this feature.</td>
+        <td>Checkbox's accessible name: "Newest first", unchecked.</td>
+        <td>n/a — success, this is the default.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">03</span></td>
+        <td>Success — newest-first (toggled view)</td>
+        <td>Visitor checks "Newest first"</td>
+        <td>Display reorders newest-to-oldest. The Name field's hint text stays save-order
+          ("sorting is a view, not a reordering" — seed). Marker stays visible even though it is
+          now also the top row (PO decision: shown in every view).</td>
+        <td>See a11y note below — the display reorder must NOT trigger the same
+          <code>aria-live</code> announcement a real list write gets.</td>
+        <td>Uncheck to return to oldest-first; nothing about the underlying list changed either
+          way.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">03</span></td>
+        <td>Success — new save while newest-first is on</td>
+        <td>Visitor saves a name with "Newest first" checked</td>
+        <td>New row appears at the top of the display (it is now newest); marker moves to it.</td>
+        <td>Region announces new contents (this IS a write).</td>
+        <td>n/a — success.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">04</span></td>
+        <td>Partial — near cutoff</td>
+        <td>23h59m elapsed since a row's saved-at moment</td>
+        <td>Row still present, reads "saved 23 hours ago". Crossing midnight while under 24h
+          changes nothing (cutoff is measured from the moment, not the calendar).</td>
+        <td>Stable absolute time unchanged.</td>
+        <td>n/a — informational; visitor may remove manually if they want it gone sooner.</td>
+      </tr>
+      <tr>
+        <td><span class="tag">04</span></td>
+        <td>Success — falls off (system write)</td>
+        <td>&gt;24h elapsed since a row's own saved-at moment, visitor idle</td>
+        <td>Row disappears unprompted. If it wore "Newest", the marker re-derives onto the next
+          row. A slot frees for another save.</td>
+        <td>Region announces new contents, exactly as a manual removal would (seed: "a write to
+          the list, not a tick"). Focus is left exactly where it already was — falling off does
+          not move focus, unlike a visitor's own removal.</td>
+        <td>n/a — automatic; no error, nothing for the visitor to do.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<section class="ux-section" id="ux-a11y" aria-labelledby="ux-a11y-h">
+  <h2 id="ux-a11y-h">4. A11y &amp; responsive notes</h2>
+  <ul class="a11y-list">
+    <li><strong>Row accessible name carries the stable absolute time, never the ticking words.</strong>
+      Structure: the visible ticking text (<code>.row-age</code>) is <code>aria-hidden="true"</code>;
+      a second, visually-hidden node per row (e.g. a <code>&lt;span&gt;</code> clipped with a
+      standard visually-hidden technique, referenced by the row's <code>aria-label</code> or
+      <code>aria-describedby</code>) carries "&lt;name&gt;, saved &lt;stable time&gt;" and never
+      changes on a tick. This mockup renders that node visibly (italic, muted) only so a reviewer
+      can read it — production hides it exactly as a visually-hidden utility hides anything else.</li>
+    <li><strong>Sort toggle must not read as a list write.</strong> The Saved names region carries
+      <code>aria-live="polite"</code> on the whole section (unchanged, carried). Reordering the
+      <code>&lt;ul&gt;</code>'s DOM children when "Newest first" is toggled risks the live region
+      re-announcing the entire list, which the seed explicitly reserves for real writes ("a row
+      falling off is a write to the list... it does not exempt the list from reporting that it
+      changed" implies a view change is NOT such a report). Developer guidance: prefer CSS
+      <code>order</code> on flex/grid rows over DOM reordering, or keep the toggle's target outside
+      the live subtree, so checking/unchecking the box is silent the way scrolling would be.</li>
+    <li><strong>Never colour alone.</strong> The "Newest" marker is a text label, read by any
+      screen reader as ordinary content — the blue box shown in these mockups is a visual
+      reinforcement, not the signal itself. Refusals ("...is already saved.", "Five names is the
+      limit...") are text, not colour-coded status alone. The existing <code>.role-note</code>
+      comment already flags <code>#888</code> vs <code>#595959</code> for the AA 4.5:1 text floor;
+      the same check applies to whatever token frontend-design assigns the marker's border/text
+      colour — verify it against white at 4.5:1, this spec does not invent the hex.</li>
+    <li><strong>Keyboard order (tab sequence), top to bottom:</strong> Name field → "Greet me" →
+      "Newest first" checkbox (only when it exists) → for each row, in display order: "Greet me
+      again as &lt;name&gt;" → "Remove &lt;name&gt;" → "Save this name" (only when a greeting is
+      current). The row's name text and age/time text are not focusable — they are read as part of
+      the row's accessible name via labelling, not as separate stops.</li>
+    <li><strong>Visible focus.</strong> Every interactive control (field, checkbox, both row
+      buttons, both form buttons) gets a visible focus ring — this mockup's existing
+      <code>.is-focused</code> outline (3px solid, 2px offset) is a shape/outline change, not a
+      colour-only change, so it survives forced-colours and greyscale review.</li>
+    <li><strong>Focus is only ever moved deliberately.</strong> Manual removal moves focus to the
+      region (carried, unchanged — <code>tabIndex=-1</code>, <code>ref.current.focus()</code>).
+      Greeting again and saving leave focus exactly where the visitor's own click left it. A row
+      falling off on its own moves focus <em>nowhere</em> — the one state in this feature where
+      "no focus movement" is itself the acceptance criterion (story 04).</li>
+    <li><strong>Heading order.</strong> One <code>&lt;h2&gt;</code> ("Saved names") under the
+      page's own <code>&lt;h1&gt;</code> (app shell) — unchanged, no level is skipped, and this
+      feature introduces no new heading.</li>
+    <li><strong>Reduced motion.</strong> The only thing that "moves" here is text content (the age
+      reading's words, a row appearing/disappearing). No animation is introduced by this feature;
+      nothing here needs a <code>prefers-reduced-motion</code> guard because nothing here motion.</li>
+    <li><strong>Responsive.</strong> The existing row layout already wraps
+      (<code>flex-wrap: wrap</code> on <code>.row</code> and <code>.row-left</code>) — below
+      ~480px the name, age reading and marker stack above the row's two buttons rather than
+      truncating. No new breakpoint is required by this feature; the state variants below reuse
+      the same 640px story width as the product owner's four screens.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="ux-section" id="ux-handoff" aria-labelledby="ux-handoff-h">
+  <h2 id="ux-handoff-h">5. Handoff AC — the experience assertion the end-to-end test must prove</h2>
+  <p>
+    A visitor, with no instruction beyond what is on screen, can: save a name and watch its row
+    read "saved just now"; leave the tab open and watch that reading advance on its own — "saved 1
+    minute ago", then "saved 1 hour ago" — without touching anything; look at the list, in either
+    sort order, and identify the most recently saved name from the "Newest" label alone; check a
+    single labelled control ("Newest first") and see only the display order change, proved by the
+    Name field's hint staying in save order underneath; and, given enough elapsed time, watch a
+    stale name leave the list on its own, with the region reporting the change exactly as it would
+    for a manual removal and with focus undisturbed. A screen-reader visitor reaches the same
+    three facts — when a name was saved, which name is newest, that a row changed — through a
+    stable absolute time and the region's own announcements, never through the ticking words,
+    which are hidden from them by design.
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<section class="ux-section" id="ux-variants" aria-labelledby="ux-variants-h">
+  <h2 id="ux-variants-h">6. State-variant screens</h2>
+  <p>
+    Every row of the state matrix above that is not already depicted in one of the four product
+    owner screens, rendered here as its own labelled variant of the same Saved names screen. Each
+    is tagged with the story and scenario it proves.
+  </p>
+
+  <h3>Story 01 — empty, blank-name error, and the tick over time</h3>
+  <p class="caption">
+    <span class="tag">01 — "An empty list shows no age reading at all"</span>
+    <span class="tag">carried — blank submission</span>
+  </p>
+  <div class="variant-row">
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab</p>
+      <form>
+        <label for="v01a-name">Name</label>
+        <input type="text" id="v01a-name" value="">
+        <div><button type="submit">Greet me</button></div>
+      </form>
+      <div class="status-region" role="status" aria-live="polite"></div>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <p class="empty">No names saved yet.</p>
+      </div>
+      <p class="role-note">Fresh mount, or every row removed/fallen off. No sort control, no age
+        text, no marker — nothing to read "ago" anywhere on screen (01).</p>
+    </div>
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab</p>
+      <form>
+        <label for="v01b-name">Name</label>
+        <input type="text" id="v01b-name" value="   " aria-describedby="v01b-alert">
+        <p class="alert" role="alert" id="v01b-alert">Please enter your name.</p>
+        <div><button type="submit">Greet me</button></div>
+      </form>
+      <div class="status-region" role="status" aria-live="polite"></div>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <p class="empty">No names saved yet.</p>
+      </div>
+      <p class="role-note">Blank/whitespace submitted (carried, unchanged by this feature). The
+        list is untouched; the way out is retyping and resubmitting.</p>
+    </div>
+  </div>
+
+  <div class="variant-row" style="margin-top:1rem;">
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — t = 0</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <ul class="rows">
+          <li class="row">
+            <span class="row-left">
+              <span class="row-name">Ada</span>
+              <span class="row-age" aria-hidden="true">saved just now</span>
+              <span class="row-time">(screen reader hears: 14:20)</span>
+              <span class="row-marker">Newest</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+      <p class="role-note">Just saved (01).</p>
+    </div>
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — t = 60s, unprompted</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <ul class="rows">
+          <li class="row">
+            <span class="row-left">
+              <span class="row-name">Ada</span>
+              <span class="row-age" aria-hidden="true">saved 1 minute ago</span>
+              <span class="row-time">(screen reader hears: 14:20 — unchanged)</span>
+              <span class="row-marker">Newest</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+      <p class="role-note">Visible text advanced on its own; stable time held (01).</p>
+    </div>
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — t = 60min, unprompted</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <ul class="rows">
+          <li class="row">
+            <span class="row-left">
+              <span class="row-name">Ada</span>
+              <span class="row-age" aria-hidden="true">saved 1 hour ago</span>
+              <span class="row-time">(screen reader hears: 14:20 — unchanged)</span>
+              <span class="row-marker">Newest</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+      <p class="role-note">Crosses from minutes to hours (01). Never reaches "day" — 04 removes
+        the row first.</p>
+    </div>
+  </div>
+
+  <h3>Story 01/02/03/04 — the duplicate-save refusal, all four consumers unmoved</h3>
+  <p class="caption">
+    <span class="tag">01 — re-save does not restart the age reading</span>
+    <span class="tag">02 — re-save does not move the marker</span>
+    <span class="tag">03 — re-save reorders nothing</span>
+    <span class="tag">04 — re-save does not restart the 24h clock</span>
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v02-name">Name</label>
+      <input type="text" id="v02-name" value="" aria-describedby="v02-hint">
+      <p class="hint" id="v02-hint">Saved: Ada, Bob</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="refusal">Ada is already saved.</p>
+      <div class="sort-control">
+        <input type="checkbox" id="v02-sort">
+        <label for="v02-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 10 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 3 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      The visitor greeted "Hello, Ada" and pressed "Save this name" again. Nothing moved: Ada's
+      age reading is still "saved 10 minutes ago", the marker is still on Bob, oldest-first order
+      is unchanged, and (not shown) Ada's 24-hour clock keeps counting from her first save — PO
+      decision "keep, not refresh", the single rule all four stories share.
+    </p>
+  </div>
+
+  <h3>Story carried — the full-list refusal (over-limit)</h3>
+  <p class="caption"><span class="tag">carried, unchanged</span> <span class="tag">over-limit</span></p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v03-name">Name</label>
+      <input type="text" id="v03-name" value="" aria-describedby="v03-hint">
+      <p class="hint" id="v03-hint">Saved: Ada, Bob, Cleo, Dan, Eve</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Fay</div>
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="refusal">Five names is the limit. Remove one to save another.</p>
+      <ul class="rows">
+        <li class="row"><span class="row-left"><span class="row-name">Ada</span><span class="row-age" aria-hidden="true">saved 40 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Ada</button><button type="button">Remove Ada</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Bob</span><span class="row-age" aria-hidden="true">saved 30 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Bob</button><button type="button">Remove Bob</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Cleo</span><span class="row-age" aria-hidden="true">saved 20 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Cleo</button><button type="button">Remove Cleo</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Dan</span><span class="row-age" aria-hidden="true">saved 10 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Dan</button><button type="button">Remove Dan</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Eve</span><span class="row-age" aria-hidden="true">saved just now</span><span class="row-marker">Newest</span></span><span class="row-controls"><button type="button">Greet me again as Eve</button><button type="button">Remove Eve</button></span></li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      "Fay" was greeted but the list is already at five. "Save this name" stays present and
+      enabled (P17) — a vanishing or disabled button would not teach the visitor why. Way out:
+      remove a row, or wait for Ada to fall off in four (story 04).
+    </p>
+  </div>
+
+  <h3>Story 02 — the marker relocates on manual removal</h3>
+  <p class="caption"><span class="tag">02 — "Removing the newest saved name moves the marker to the next-newest"</span></p>
+  <div class="variant-row">
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — before</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <ul class="rows">
+          <li class="row"><span class="row-left"><span class="row-name">Ada</span><span class="row-age" aria-hidden="true">saved 5 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Ada</button><button type="button">Remove Ada</button></span></li>
+          <li class="row"><span class="row-left"><span class="row-name">Bob</span><span class="row-age" aria-hidden="true">saved just now</span><span class="row-marker">Newest</span></span><span class="row-controls"><button type="button">Greet me again as Bob</button><button type="button">Remove Bob</button></span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — after "Remove Bob"</p>
+      <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+        <h2>Saved names</h2>
+        <ul class="rows">
+          <li class="row"><span class="row-left"><span class="row-name">Ada</span><span class="row-age" aria-hidden="true">saved 5 minutes ago</span><span class="row-marker">Newest</span></span><span class="row-controls"><button type="button">Greet me again as Ada</button><button type="button">Remove Ada</button></span></li>
+        </ul>
+      </div>
+      <p class="role-note">Marker re-derives onto Ada; the region itself took focus (carried focus
+        rule) and announced its new contents.</p>
+    </div>
+  </div>
+
+  <h3>Story 03 — sort control absent when empty, and the default view</h3>
+  <p class="caption">
+    <span class="tag">03 — "The sort control is absent while nothing is saved"</span>
+    <span class="tag">03 — "Oldest-first is the default, exactly as the list reads today"</span>
+  </p>
+  <div class="variant-row">
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <p class="empty">No names saved yet.</p>
+      </div>
+      <p class="role-note">No "Newest first" checkbox exists — nothing to sort.</p>
+    </div>
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <div class="sort-control">
+          <input type="checkbox" id="v05-sort">
+          <label for="v05-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+        </div>
+        <ul class="rows">
+          <li class="row"><span class="row-left"><span class="row-name">Ada</span><span class="row-age" aria-hidden="true">saved 9 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Ada</button><button type="button">Remove Ada</button></span></li>
+          <li class="row"><span class="row-left"><span class="row-name">Bob</span><span class="row-age" aria-hidden="true">saved 4 minutes ago</span></span><span class="row-controls"><button type="button">Greet me again as Bob</button><button type="button">Remove Bob</button></span></li>
+          <li class="row"><span class="row-left"><span class="row-name">Cleo</span><span class="row-age" aria-hidden="true">saved just now</span><span class="row-marker">Newest</span></span><span class="row-controls"><button type="button">Greet me again as Cleo</button><button type="button">Remove Cleo</button></span></li>
+        </ul>
+      </div>
+      <p class="role-note">Checkbox present, unchecked, and Ada/Bob/Cleo display in save order —
+        exactly what the screen did before this feature existed.</p>
+    </div>
+  </div>
+
+  <h3>Story 04 — the day-old cutoff: near, at, and its recovery</h3>
+  <p class="caption">
+    <span class="tag">04 — "does not fall off before a day has passed"</span>
+    <span class="tag">04 — "falls off... once more than a day has passed"</span>
+    <span class="tag">04 — "falling off frees a slot for another save"</span>
+  </p>
+  <div class="variant-row">
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — 23h59m</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <ul class="rows">
+          <li class="row"><span class="row-left"><span class="row-name">Ada</span><span class="row-age" aria-hidden="true">saved 23 hours ago</span><span class="row-marker">Newest</span></span><span class="row-controls"><button type="button">Greet me again as Ada</button><button type="button">Remove Ada</button></span></li>
+        </ul>
+      </div>
+      <p class="role-note">Still present, one minute before the cutoff.</p>
+    </div>
+    <div class="screen">
+      <p class="app-heading">sdlc2 lab — 24h01m, unprompted</p>
+      <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+        <h2>Saved names</h2>
+        <p class="empty">No names saved yet.</p>
+      </div>
+      <p class="role-note">Ada is gone on her own; region re-announced; focus untouched (unlike a
+        manual "Remove").</p>
+    </div>
+  </div>
+  <div class="screen" style="max-width:640px;margin:1rem auto 0;">
+    <p class="app-heading">sdlc2 lab — slot freed, new save succeeds</p>
+    <form>
+      <label for="v06-name">Name</label>
+      <input type="text" id="v06-name" value="" aria-describedby="v06-hint">
+      <p class="hint" id="v06-hint">Saved: Bob, Cleo, Dan, Eve</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Fay</div>
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row"><span class="row-left"><span class="row-name">Bob</span><span class="row-age" aria-hidden="true">saved 23 hours ago</span></span><span class="row-controls"><button type="button">Greet me again as Bob</button><button type="button">Remove Bob</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Cleo</span><span class="row-age" aria-hidden="true">saved 12 hours ago</span></span><span class="row-controls"><button type="button">Greet me again as Cleo</button><button type="button">Remove Cleo</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Dan</span><span class="row-age" aria-hidden="true">saved 6 hours ago</span></span><span class="row-controls"><button type="button">Greet me again as Dan</button><button type="button">Remove Dan</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Eve</span><span class="row-age" aria-hidden="true">saved 1 hour ago</span></span><span class="row-controls"><button type="button">Greet me again as Eve</button><button type="button">Remove Eve</button></span></li>
+        <li class="row"><span class="row-left"><span class="row-name">Fay</span><span class="row-age" aria-hidden="true">saved just now</span><span class="row-marker">Newest</span></span><span class="row-controls"><button type="button">Greet me again as Fay</button><button type="button">Remove Fay</button></span></li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Ada fell off earlier (previous screen), freeing the fifth slot; "Fay" now saves successfully
+      where it would otherwise have hit the full-list refusal — exactly like a manual removal
+      would free the same slot.
+    </p>
+  </div>
+</section>
+
+</body>
+</html>
