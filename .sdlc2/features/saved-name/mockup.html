@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saved name — mockup</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+  }
+  h1.page-title {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+  p.intro {
+    color: #444;
+    max-width: 64ch;
+    margin: 0 0 2rem;
+  }
+  .story {
+    max-width: 640px;
+    margin: 0 auto 2.5rem;
+  }
+  .story h2 {
+    font-size: 1rem;
+    margin: 0 0 0.25rem;
+  }
+  .story .caption {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+  .screen {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+    box-sizing: border-box;
+  }
+  .screen .app-heading {
+    font-size: 0.95rem;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 0.6rem;
+    margin: 0 0 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid #595959;
+    border-radius: 3px;
+    margin-bottom: 0.4rem;
+  }
+  .hint {
+    font-size: 0.85rem;
+    color: #333;
+    margin: 0 0 0.75rem;
+  }
+  button {
+    font-size: 0.95rem;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid #333;
+    border-radius: 3px;
+    background: #eee;
+    cursor: default;
+  }
+  form button {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+  .status-region {
+    margin: 1rem 0 0;
+    padding: 0.5rem 0;
+    min-height: 1.2rem;
+    font-weight: bold;
+  }
+  .alert {
+    color: #7a0000;
+    font-size: 0.9rem;
+    margin: 0 0 0.5rem;
+  }
+  .saved-name-region {
+    margin-top: 1.25rem;
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+  }
+  .saved-name-region h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+    margin: 0 0 0.5rem;
+  }
+  .saved-name-region .content {
+    margin: 0 0 0.75rem;
+  }
+  .saved-name-region .controls button {
+    margin-right: 0.5rem;
+  }
+  .role-note {
+    font-size: 0.75rem;
+    /* #888 on #fff measures ~3.5:1, below the 4.5:1 WCAG AA text floor. #595959 measures ~7:1. */
+    color: #595959;
+    margin-top: 0.5rem;
+  }
+  /* ============================================================ */
+  /* ux node additions (round 1) — state variants + UX spec        */
+  /* ============================================================ */
+  input[type="text"]:focus-visible,
+  button:focus-visible,
+  .is-focused {
+    outline: var(--focus-ring-width, 2px) solid #1a1a1a;
+    outline-offset: var(--focus-ring-offset, 2px);
+  }
+  button {
+    /* normative token for frontend-design: --control-min-target: 44px — same token
+       greet-visitor already fixed, reused here rather than invented. */
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .variant-label {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: bold;
+    color: #1a1a1a;
+    background: #eef;
+    border: 1px solid #99c;
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    margin: 0 0 0.5rem;
+  }
+  .ux-spec {
+    max-width: 860px;
+    margin: 3rem auto 0;
+    border-top: 3px solid #333;
+    padding-top: 1.5rem;
+  }
+  .ux-spec h2 {
+    font-size: 1.15rem;
+  }
+  .ux-spec h3 {
+    font-size: 1rem;
+    margin-top: 2rem;
+  }
+  .ux-spec h4 {
+    font-size: 0.9rem;
+    margin: 1.25rem 0 0.4rem;
+  }
+  .ux-spec p, .ux-spec li {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #333;
+  }
+  .flow-diagram {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    white-space: pre;
+  }
+  table.state-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    background: #fff;
+  }
+  table.state-matrix caption {
+    text-align: left;
+    font-size: 0.8rem;
+    color: #555;
+    margin-bottom: 0.4rem;
+  }
+  table.state-matrix th, table.state-matrix td {
+    border: 1px solid #ccc;
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.state-matrix th {
+    background: #eee;
+  }
+  table.state-matrix td.na {
+    color: #595959;
+    font-style: italic;
+  }
+  .table-scroll {
+    overflow-x: auto;
+  }
+  .nav-model {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+  }
+  .wireframe {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    white-space: pre;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Saved name — lo-fi mockup</h1>
+<p class="intro">
+  Every block below is the <em>same</em> screen — one route, no navigation — shown at a different
+  state. The po node's five happy-path snapshots — one per story, the <strong>last</strong> screen
+  in each story block below (s1c, s2, s3, s4, s5) — are preserved unchanged. The ux node adds
+  every other state each acceptance criterion names, including two earlier moments <em>within</em>
+  Story 1 itself (s1a arrival, s1b saveable) that lead up to the po node's own s1c: the arrival and
+  error states each story's happy path skips past, the state where the saved name and the current
+  greeting disagree, the alert-and-hint co-occurrence, the identical replace, and both fresh-visit
+  shapes. <strong>Every screen in this file — the ux-added variants and the po node's five preserved
+  happy-path snapshots alike — now carries a</strong>
+  <span class="variant-label">Story·Scenario</span> <strong>label naming exactly which
+  acceptance criterion or precondition it demonstrates</strong> (arbiter round: the five
+  preserved screens gained a label and nothing else — their markup, copy and state are
+  byte-for-byte what the po node wrote). The full experience spec — flow, state matrix, IA,
+  keyboard path, a11y notes and handoff AC — follows the last story, in the
+  <a href="#ux-spec-heading">UX experience spec</a> section. No colour-only signal is used
+  anywhere below: the alert and the hint carry their meaning in text, exactly as
+  <code>greet-visitor</code>'s own mockup established and this feature does not change. The Name
+  field is never marked <code>readonly</code> in any screen below — every value shown is fully
+  editable in the real app; <code>readonly</code> is not part of this feature's state and is not
+  used anywhere in this mockup to imply otherwise.
+</p>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 1 — Save the name I was greeted as (walking skeleton, part 1)</h2>
+  <p class="caption">
+    Three moments in the same story: arrival (nothing saved, save control absent), just after a
+    greeting (save control appears), and just after saving (the region reflects it) — the last of
+    these three (s1c) is the po node's own preserved happy-path snapshot; the first two (s1a, s1b)
+    are ux-added state variants leading up to it, each labelled below like every other added
+    screen.
+  </p>
+
+  <div class="screen">
+    <p class="variant-label">Story 1 · State NOTHING-SAVED — arrival, before any greeting</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s1a-name">Name</label>
+      <input type="text" id="s1a-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+      <!-- no Save this name button: absent from the DOM until there has been a greeting -->
+    </div>
+    <p class="role-note">Arrival — before any greeting. No "Save this name" button in the DOM.</p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 1 · State SAVEABLE — after a greeting, before saving</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s1b-name">Name</label>
+      <input type="text" id="s1b-name" value="Ada">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+      </div>
+    </div>
+    <p class="role-note">After a greeting, before saving — "Save this name" has appeared.</p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 1 &middot; Scenario "Saving captures the name the visitor was just greeted as" + "Saving does not move focus" (po happy path, preserved)</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s1c-name">Name</label>
+      <input type="text" id="s1c-name" value="Ada">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button" class="is-focused">Save this name</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Happy path — saved. "Save this name" still has focus; the empty-state text is gone.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 1 · Scenario "A blank submission does not summon the save control"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s1d-name">Name</label>
+      <input type="text" id="s1d-name" value="" aria-describedby="s1d-alert">
+      <p class="alert" role="alert" id="s1d-alert">Please enter your name.</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+      <!-- no Save this name button: there has still been no greeting, only a rejected blank -->
+    </div>
+    <p class="role-note">
+      Error state, before any greeting. A blank submit produces the existing
+      <code>greet-visitor</code> alert; the Saved name region is unaffected — still the empty
+      state, still no "Save this name" button. <strong>Way out:</strong> type a name and submit.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 1 · Scenario "Saving captures the greeting, never an untyped draft"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s1e-name">Name</label>
+      <input type="text" id="s1e-name" value="Grace">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Partial / draft state. The greeting still reads "Hello, Ada" but the visitor has since typed
+      "Grace" without submitting. Activating "Save this name" here will save "Ada" — the greeting,
+      not the draft — leaving "Grace" in the field untouched.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 1 · Scenario "A blank submission never touches the saved name"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s1f-name">Name</label>
+      <input type="text" id="s1f-name" value="" aria-describedby="s1f-alert">
+      <p class="alert" role="alert" id="s1f-alert">Please enter your name.</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Error state, after a save. The Name field was cleared and submitted blank: the alert
+      appears, the greeting is left exactly as it was (existing <code>greet-visitor</code> rule),
+      and the Saved name region is untouched — still "Saved: Ada". <strong>Way out:</strong> type
+      a name and submit, or leave the saved name exactly as it is and do nothing else.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 2 — Greet me again as the saved name (walking skeleton, part 2)</h2>
+  <p class="caption">
+    A name ("Ada") is saved while the visitor has since typed an unsent draft ("Grace"). Greeting
+    again greets as the saved name, not the draft, and leaves the draft untouched.
+  </p>
+
+  <div class="screen">
+    <p class="variant-label">Precondition (Story 2 "does not change the saved name" ·
+      Story 3 "hint updates when the saved name is replaced" · Story 4 "replace the saved name")
+      — the saved name and the current greeting disagree</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s2a0-name">Name</label>
+      <input type="text" id="s2a0-name" value="Grace" aria-describedby="s2a0-hint">
+      <p class="hint" id="s2a0-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Grace</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      The state the ubiquitous language singles out by name: "the visitor can be greeted as Bob
+      while Ada stays saved." "Ada" was saved earlier; the visitor has since been greeted "Grace"
+      via the ordinary submit control (a real greeting, not merely typed) but has not activated
+      "Save this name" again. The region and the hint both still read "Saved: Ada" — a greeting
+      alone never writes to the saved name. <strong>Way out:</strong> activate "Greet me again" to
+      return to "Hello, Ada" without disturbing the save (the screen below), or activate
+      "Save this name" to replace it with "Saved: Grace" (Story 4).
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 2 &middot; Scenario "Greeting again greets as the saved name, not the current draft" + "leaves the Name field's draft untouched" (po happy path, preserved)</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s2-name">Name</label>
+      <input type="text" id="s2-name" value="Grace">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Happy path — after activating "Greet me again". Greeting reads "Hello, Ada"; the Name field
+      still reads "Grace".
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 2 · Scenario "Greeting again works even when the saved name is already the greeting shown" — before / after</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s2b-name">Name</label>
+      <input type="text" id="s2b-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      No-op-looking state — before and after "Greet me again" are byte-identical here ("Hello,
+      Ada" both times) because the greeting already matches the saved name. The status region
+      still re-renders (a keyed child, per <code>greet-visitor</code>'s R9/VH-09 precedent) so the
+      submission is still perceivable even though nothing visibly changes; no alert appears.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 2 · Scenario "Greeting again clears a standing blank-name alert" — BEFORE</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s2c-name">Name</label>
+      <input type="text" id="s2c-name" value="" aria-describedby="s2c-alert">
+      <p class="alert" role="alert" id="s2c-alert">Please enter your name.</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Error state, recoverable without retyping. A blank submit left the alert standing; the
+      greeting is left exactly as it was (existing <code>greet-visitor</code> rule) — still
+      "Hello, Ada", the same text s1f's identical blank-after-save state reads — and the Saved
+      name region is untouched. <strong>Way out:</strong> activate "Greet me again" (below) — no
+      need to type anything.
+    </p>
+  </div>
+
+  <div class="screen">
+    <p class="variant-label">Story 2 · Scenario "Greeting again clears a standing blank-name alert" — AFTER</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s2d-name">Name</label>
+      <input type="text" id="s2d-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button" class="is-focused">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Recovered. The alert is gone (not just visually — removed from the DOM, so
+      <code>aria-describedby</code> no longer references it), the greeting reads "Hello, Ada", and
+      "Greet me again" keeps focus — the same "control survives its own activation" rule Story 1's
+      save scenario established.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 3 — Be reminded of the saved name at the Name field</h2>
+  <p class="caption">
+    The hint "Saved: Ada" is the Name field's accessible description (shown here as visible text
+    beneath the field, per the seed's "visible text" requirement).
+  </p>
+
+  <div class="screen">
+    <p class="variant-label">Story 3 &middot; Scenario "The hint appears once a name is saved" (po happy path, preserved)</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s3-name">Name</label>
+      <input type="text" id="s3-name" value="" aria-describedby="s3-hint">
+      <p class="hint" id="s3-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Happy path — the hint sits under the Name field, associated to it via aria-describedby.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 3 · Scenario "No hint while nothing is saved"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s3b-name">Name</label>
+      <input type="text" id="s3b-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+    </div>
+    <p class="role-note">
+      Empty state — no <code>aria-describedby</code> attribute at all on the Name field (not an
+      empty one); the field has no accessible description until something is saved.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 3 · Scenario "The hint stays present while the visitor is mid-draft"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s3c-name">Name</label>
+      <input type="text" id="s3c-name" value="Grace" aria-describedby="s3c-hint">
+      <p class="hint" id="s3c-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Partial / draft state — the visitor has typed "Grace" without submitting; the hint keeps
+      reading "Saved: Ada" regardless of the draft (seed's own open question — present, not noise
+      by decision).
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 3 · Scenario "When a blank-name alert is also on screen, the alert is described first"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s3d-name">Name</label>
+      <input type="text" id="s3d-name" value="" aria-describedby="s3d-alert s3d-hint">
+      <p class="alert" role="alert" id="s3d-alert">Please enter your name.</p>
+      <p class="hint" id="s3d-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Error + partial, combined — the alert and the hint are both present and both describe the
+      Name field. <strong>Order is load-bearing:</strong> <code>aria-describedby="s3d-alert
+      s3d-hint"</code> lists the alert's id first, so the field's computed accessible description
+      reads "Please enter your name. Saved: Ada" — the submission's own error outranks the
+      standing hint. <strong>Way out:</strong> type a name and submit, or activate "Greet me
+      again" (Story 2) to recover without retyping.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 3 · Scenario "The hint updates when the saved name is replaced"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s3e-name">Name</label>
+      <input type="text" id="s3e-name" value="Grace" aria-describedby="s3e-hint">
+      <p class="hint" id="s3e-hint">Saved: Grace</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Grace</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Grace</p>
+      <div class="controls">
+        <button type="button" class="is-focused">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      "Ada" was saved, the visitor was then greeted "Grace", and saved again — the hint now reads
+      "Saved: Grace", in lockstep with the region above it, since both are the same fact shown
+      twice (feature.md Contract vocabulary).
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 4 — Replace the saved name</h2>
+  <p class="caption">
+    "Ada" was saved earlier; the visitor was then greeted "Grace" and activated "Save this name"
+    again. No confirmation, no undo — the region simply now reads "Grace".
+  </p>
+
+  <div class="screen">
+    <p class="variant-label">Story 4 &middot; Scenario "Saving again replaces the previous saved name" + "Replacing asks nothing and offers no way back" (po happy path, preserved)</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s4-name">Name</label>
+      <input type="text" id="s4-name" value="Grace" aria-describedby="s4-hint">
+      <p class="hint" id="s4-hint">Saved: Grace</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Grace</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Grace</p>
+      <div class="controls">
+        <button type="button" class="is-focused">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Happy path — replaced. "Saved: Ada" is gone; no dialog, no "undo" control anywhere.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 4 · Scenario "Saving the same name again still replaces it"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s4b-name">Name</label>
+      <input type="text" id="s4b-name" value="Ada" aria-describedby="s4b-hint">
+      <p class="hint" id="s4b-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">Saved: Ada</p>
+      <div class="controls">
+        <button type="button" class="is-focused">Save this name</button>
+        <button type="button">Greet me again</button>
+      </div>
+    </div>
+    <p class="role-note">
+      Identical-replace — visually indistinguishable from the screen before "Save this name" was
+      activated a second time (same text, "Saved: Ada", both before and after). Per VH-02, the
+      region still re-announces the unchanged string (developer keys the render so the live region
+      fires again rather than staying silent); "Save this name" keeps focus, exactly as the first
+      save did.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 5 — A fresh visit starts with nothing saved</h2>
+  <p class="caption">
+    Same visitor, new visit, after having saved "Ada" and used "Greet me again" previously.
+    Nothing carries over.
+  </p>
+
+  <div class="screen">
+    <p class="variant-label">Story 5 &middot; Scenario "A fresh visit after saving starts clean" (po happy path, preserved)</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s5-name">Name</label>
+      <input type="text" id="s5-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+      <!-- no Save this name / Greet me again buttons: this is a fresh visit -->
+    </div>
+    <p class="role-note">
+      Happy path — fresh visit. No hint, no "Save this name", no "Greet me again"; identical in
+      shape to Story 1's arrival screen.
+    </p>
+  </div>
+
+  <br>
+
+  <div class="screen">
+    <p class="variant-label">Story 5 · Scenario "A fresh visit after greeting again starts clean too"</p>
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s5b-name">Name</label>
+      <input type="text" id="s5b-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-name-region" role="region" aria-label="Saved name" aria-live="polite">
+      <h2>Saved name</h2>
+      <p class="content">No name saved yet.</p>
+      <!-- no Save this name / Greet me again buttons: fresh visit, even though the prior visit
+           both saved a name AND used "Greet me again" -->
+    </div>
+    <p class="role-note">
+      Same clean shape reached by a different prior path — this visitor saved "Ada" <em>and</em>
+      activated "Greet me again" last visit. The status region is present with no text (not
+      absent — same P1 invariant <code>greet-visitor</code> established), exactly as if nothing
+      had ever happened.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- UX experience spec (ux node, round 1) — extends this file in  -->
+<!-- place; every story block above is preserved unchanged         -->
+<!-- ============================================================ -->
+<section class="ux-spec" aria-labelledby="ux-spec-heading">
+<h2 id="ux-spec-heading">UX experience spec</h2>
+<p style="font-size:0.82rem;color:#595959;">
+  <strong>Status:</strong> finalized in the <code>ux</code> node's arbiter (DECIDE) round.
+  Rounds 1–2 produced everything below; the arbiter round re-verified it against
+  <code>feature.md</code>, completed the variant labelling of the po node's preserved
+  happy-path screens, and recorded the outstanding calls as <code>VH-ux-01</code> and
+  <code>VH-ux-02</code> in <code>VERIFY-WITH-HUMAN.md</code>. Nothing below is blocked on a
+  human: the developer can build from it as it stands.
+</p>
+
+<h3>1. Experience summary</h3>
+<p>
+  <strong>Actor:</strong> the Visitor (feature.md Ubiquitous language) — same actor as
+  <code>greet-visitor</code>, no new identity or account. <strong>Job-to-be-done:</strong> "let me
+  hold onto the name I was just greeted as, so being greeted that way again never means typing it
+  out a second time." <strong>Entry:</strong> the same single route this feature extends —
+  <code>/</code> — always arriving with nothing saved (Story 5), whether it is the first visit or
+  a later one. <strong>Exit:</strong> none inside this feature, same as <code>greet-visitor</code>
+  — the visitor may loop (save, greet again, replace) indefinitely or leave the tab.
+  <strong>Success metric:</strong> the visitor reaches a second "Hello, Ada" using only "Save this
+  name" and "Greet me again" — zero retyping, zero instructional copy, using only the two fixed
+  control names and the region's own text.
+</p>
+
+<h3>2. Primary flow — happy path and recovery</h3>
+<p>
+  This feature does not replace <code>greet-visitor</code>'s own ARRIVE / TYPING / SUBMIT /
+  SUCCESS / ERROR flow (see that feature's own <code>mockup.html</code>) — it adds a second,
+  parallel state machine for the <strong>Saved name region</strong>, whose transitions are
+  triggered by, but independent of, the greeting flow. The two machines compose: every screen
+  drawn above is one point in the greeting flow crossed with one point in the saved-name flow.
+</p>
+<p>
+  <strong>Saved-name states:</strong> <strong>NOTHING-SAVED</strong> (region reads "No name saved
+  yet."; save control absent; greet-again control absent; hint absent) &middot;
+  <strong>SAVEABLE</strong> (a greeting exists but nothing is saved yet; save control has
+  appeared; region still reads "No name saved yet."; greet-again and hint still absent) &middot;
+  <strong>SAVED</strong> (region and hint both read "Saved: &lt;name&gt;"; save and greet-again
+  controls both present) &middot; <strong>REPLACED</strong> (same shape as SAVED, reached by
+  saving again — silently, no confirmation, per Story 4).
+</p>
+<div class="table-scroll">
+<table class="state-matrix">
+<caption>Every transition in the saved-name flow. "Trigger" is always something the visitor does.
+  There is no state this table cannot reach or leave — every non-terminal state has a way out.</caption>
+<thead><tr><th>From</th><th>Trigger</th><th>To</th><th>AC / note</th></tr></thead>
+<tbody>
+<tr><td>NOTHING-SAVED</td><td>a greeting succeeds (existing "Greet me" submit)</td>
+  <td>SAVEABLE</td><td>Story1-S2</td></tr>
+<tr><td>NOTHING-SAVED</td><td>a blank submission</td><td>NOTHING-SAVED, unchanged — the region is
+  never touched by a rejected submission</td><td>Story1-S3</td></tr>
+<tr><td>SAVEABLE</td><td>another greeting succeeds (name changes or repeats)</td>
+  <td>SAVEABLE, unchanged</td><td>save control stays present; nothing about the region changes</td></tr>
+<tr><td>SAVEABLE</td><td>a blank submission</td><td>SAVEABLE, unchanged</td>
+  <td>the save control, once present, is never removed by a blank submit</td></tr>
+<tr><td>SAVEABLE</td><td>activates "Save this name"</td><td>SAVED</td>
+  <td>Story1-S4/S5/S6; Story3-S2 (hint appears in the same transition)</td></tr>
+<tr><td>SAVED</td><td>a new greeting succeeds, name unsaved (draft only, no save yet)</td>
+  <td>SAVED, unchanged — region and hint keep the old saved name; only the greeting itself changed.
+  This is the state the ubiquitous language names directly: "the visitor can be greeted as Bob
+  while Ada stays saved" — drawn explicitly as screen s2a0.</td>
+  <td>Story2-S3/S6, Story3-S4, Story4-S1's "since been greeted" setup step</td></tr>
+<tr><td>SAVED</td><td>a blank submission</td><td>SAVED, unchanged</td><td>Story1-S7, Story3-S5
+  (alert now co-describes the field, ordered before the hint)</td></tr>
+<tr><td>SAVED</td><td>activates "Save this name" again (different name now showing)</td>
+  <td>REPLACED (= SAVED, new value)</td><td>Story4-S1/S2</td></tr>
+<tr><td>SAVED</td><td>activates "Save this name" again (same name still showing)</td>
+  <td>REPLACED (= SAVED, identical value, still re-announced)</td><td>Story4-S3, VH-02(c)</td></tr>
+<tr><td>SAVED</td><td>activates "Greet me again"</td><td>SAVED, unchanged — greeting again never
+  writes to the saved name</td><td>Story2-S3..S8</td></tr>
+<tr><td>SAVED / REPLACED</td><td>fresh visit (unmount/remount)</td><td>NOTHING-SAVED, clean slate
+  — region, hint, both controls all gone in the same transition</td><td>Story5-S1/S2</td></tr>
+<tr><td>SAVEABLE</td><td>fresh visit (unmount/remount)</td><td>NOTHING-SAVED, clean slate</td>
+  <td>symmetry with the row above — a fresh visit resets from every reachable state, not only SAVED</td></tr>
+</tbody>
+</table>
+</div>
+<p>
+  <strong>Loading — not applicable.</strong> Saving and greeting-again are both synchronous
+  in-memory transitions (feature.md Decisions: "in memory only"); there is no request in flight
+  and therefore no loading state to design, exactly as <code>greet-visitor</code>'s own state
+  matrix records for its own submit.
+</p>
+<p>
+  <strong>Over-limit — not applicable.</strong> The saved name is whatever was greeted, and
+  <code>greet-visitor</code>'s own R8 ("no length limit, no truncation") already governs what can
+  be greeted; this feature adds no new limit of its own, so there is no distinct over-limit state
+  for the Saved name region to design.
+</p>
+
+<h3>3. Information architecture &amp; navigation model</h3>
+<div class="nav-model">
+<ul>
+  <li><strong>Route:</strong> still <code>/</code> — the same single route <code>greet-visitor</code>
+    established. This feature adds a region to that one screen; it does not add a screen, a
+    sub-route, a modal, or a query parameter.</li>
+  <li><strong>Deep-linking:</strong> every load of <code>/</code> renders NOTHING-SAVED (Story 5),
+    identically to a first visit, because nothing here is persisted (feature.md Out of scope). No
+    URL can land a visitor mid-flow; deep links stay trivially consistent, exactly as
+    <code>greet-visitor</code> already established for the greeting itself.</li>
+  <li><strong>"Where am I":</strong> unchanged from <code>greet-visitor</code> — the persistent
+    <code>&lt;h1&gt;sdlc2 lab&lt;/h1&gt;</code> is still the one fixed anchor. This feature adds a
+    second, subordinate landmark under it: the Saved name region itself, exposed as
+    <code>role="region"</code> with the accessible name "Saved name" (feature.md Contract
+    vocabulary) — so "where am I, within the page" now has two answers instead of one: the page
+    (via <code>&lt;h1&gt;</code>) and the region a visitor is currently reading or acting inside
+    (via the region's own accessible name, reachable through landmark navigation in any screen
+    reader).</li>
+  <li><strong>"Where can I go":</strong> nowhere new — still no nav bar, no second page. The two
+    new controls ("Save this name", "Greet me again") are not navigation; they act on this one
+    screen's state and leave the visitor exactly where they were (feature.md: "saving does not
+    move focus").</li>
+  <li><strong>Landmark structure &amp; DOM order:</strong> the Saved name region is a sibling of
+    the existing form and status region, inside the same <code>&lt;main&gt;</code> — no new
+    top-level landmark, consistent with <code>greet-visitor</code>'s own choice not to introduce
+    one. Document order is fixed and never reorders across any state: form &rarr; status region
+    &rarr; Saved name region (feature.md: "the Saved name region appears after the status
+    region"). See the landmark wireframe below.</li>
+</ul>
+</div>
+<div class="wireframe">&lt;main&gt;
+  &lt;header&gt;&lt;h1&gt;sdlc2 lab&lt;/h1&gt;&lt;/header&gt;
+
+  &lt;form&gt;                                          &lt;-- unchanged from greet-visitor
+    &lt;label for="name"&gt;Name&lt;/label&gt;
+    &lt;input id="name" /&gt;                            &lt;-- aria-describedby is NOT a constant
+                                                     attribute; it takes one of three shapes,
+                                                     never a fourth:
+
+      (1) NOTHING SAVED, no alert  — attribute absent entirely (not present with an empty
+          value): &lt;input id="name" /&gt;                                 e.g. s3b
+      (2) a name saved, no alert  — attribute is the hint's id alone:
+          &lt;input id="name" aria-describedby="saved-hint" /&gt;            e.g. s3, s3c
+      (3) a name saved AND an alert standing — attribute lists BOTH ids, alert id FIRST:
+          &lt;input id="name" aria-describedby="name-error saved-hint" /&gt; e.g. s3d
+          (a 4th shape — alert only, nothing ever saved — also occurs: s1d, s1f, s2c use
+          aria-describedby="name-error" alone, no hint id, since nothing is saved yet)
+
+    &lt;!-- alert (role="alert", id="name-error"), only when present, id FIRST when both are listed --&gt;
+    &lt;!-- hint (id="saved-hint"), only when a name is saved, id SECOND when both are listed --&gt;
+    &lt;button type="submit"&gt;Greet me&lt;/button&gt;
+  &lt;/form&gt;
+
+  &lt;p role="status" aria-live="polite"&gt;...&lt;/p&gt;   &lt;-- unchanged, always present
+
+  &lt;section role="region" aria-label="Saved name"        &lt;-- NEW, always present
+            aria-live="polite"&gt;
+    &lt;h2&gt;Saved name&lt;/h2&gt;
+    &lt;p&gt;No name saved yet. | Saved: &lt;name&gt;&lt;/p&gt;
+    &lt;!-- both buttons below: present only once earned, never disabled --&gt;
+    &lt;button&gt;Save this name&lt;/button&gt;             &lt;-- absent until 1st greeting
+    &lt;button&gt;Greet me again&lt;/button&gt;             &lt;-- absent until 1st save
+  &lt;/section&gt;
+&lt;/main&gt;</div>
+
+<h3>4. State matrix</h3>
+<p>
+  Every screen drawn in the stories above, as one row. "Region state" is the Saved name region's
+  own sub-state (section 2); columns to its right are the controls and descriptions that state
+  produces. "Recovery / way out" is filled for every non-terminal row — there is no drawn screen a
+  visitor can get stuck on.
+</p>
+<div class="table-scroll">
+<table class="state-matrix">
+<caption>Cross-product of the greeting flow (inherited from <code>greet-visitor</code>) and the
+  saved-name flow (section 2). N/A rows are explained in section 2 (Loading, Over-limit).</caption>
+<thead>
+<tr><th>#</th><th>Screen (story · id)</th><th>Region reads</th><th>Save control</th>
+<th>Greet-again control</th><th>Hint</th><th>Alert</th><th>Recovery / way out</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>Story1 · s1a (arrival)</td><td>"No name saved yet."</td><td class="na">absent</td>
+<td class="na">absent</td><td class="na">absent</td><td class="na">absent</td>
+<td>type a name, submit</td></tr>
+<tr><td>2</td><td>Story1 · s1d (blank before any greeting)</td><td>"No name saved yet."</td>
+<td class="na">absent</td><td class="na">absent</td><td class="na">absent</td>
+<td>"Please enter your name."</td><td>type a name, submit</td></tr>
+<tr><td>3</td><td>Story1 · s1b (greeted, unsaved)</td><td>"No name saved yet."</td>
+<td>present</td><td class="na">absent</td><td class="na">absent</td><td class="na">absent</td>
+<td>activate "Save this name" to advance</td></tr>
+<tr><td>4</td><td>Story1 · s1e (greeted, unsaved, mid-draft)</td><td>"No name saved yet."</td>
+<td>present</td><td class="na">absent</td><td class="na">absent</td><td class="na">absent</td>
+<td>activate "Save this name" — saves the greeting, ignores the draft</td></tr>
+<tr><td>5</td><td>Story1 · s1c (just saved)</td><td>"Saved: Ada"</td><td>present, focused</td>
+<td class="na">absent — Story2 not yet reached</td><td class="na">absent — Story3 not yet reached</td>
+<td class="na">absent</td><td>none needed — terminal-looking, but SAVED is not terminal: greet
+  again, save again, or start a fresh visit are all still reachable</td></tr>
+<tr><td>6</td><td>Story1 · s1f (blank after a save)</td><td>"Saved: Ada", unchanged</td>
+<td>present</td><td class="na">absent in this drawing (Story1 alone)</td>
+<td class="na">absent in this drawing (Story1 alone)</td><td>"Please enter your name."</td>
+<td>type a name, submit — or leave the saved name exactly as it is</td></tr>
+<tr><td>7</td><td>Story2 · s2a0 (saved name and current greeting disagree)</td><td>"Saved: Ada"</td><td>present</td><td>present</td><td>"Saved: Ada" — still the saved name, not the greeting</td><td class="na">absent</td><td>activate "Greet me again" to return to "Hello, Ada", or "Save this name" to replace with "Saved: Grace" — two valid ways out, neither forced</td></tr>
+<tr><td>8</td><td>Story2 · s2 (greeted again)</td><td>"Saved: Ada"</td><td>present</td>
+<td>present</td><td class="na">absent in this drawing (Story3 not yet reached)</td>
+<td class="na">absent</td><td>none needed</td></tr>
+<tr><td>9</td><td>Story2 · s2b (greet-again, no visible change)</td><td>"Saved: Ada"</td>
+<td>present</td><td>present</td><td class="na">absent</td><td class="na">absent</td>
+<td>none needed — region still re-renders under the hood, VH-02</td></tr>
+<tr><td>10</td><td>Story2 · s2c (alert standing, before recovery)</td><td>"Saved: Ada"</td>
+<td>present</td><td>present, focusable</td><td class="na">absent in this drawing</td>
+<td>"Please enter your name."</td><td>activate "Greet me again" — no retyping required</td></tr>
+<tr><td>11</td><td>Story2 · s2d (alert cleared, after recovery)</td><td>"Saved: Ada"</td>
+<td>present</td><td>present, focused</td><td class="na">absent in this drawing</td>
+<td class="na">absent — removed from the DOM, not merely hidden</td><td>none needed</td></tr>
+<tr><td>12</td><td>Story3 · s3 (hint present)</td><td>"Saved: Ada"</td><td>present</td>
+<td>present</td><td>"Saved: Ada"</td><td class="na">absent</td><td>none needed</td></tr>
+<tr><td>13</td><td>Story3 · s3b (nothing saved, no hint)</td><td>"No name saved yet."</td>
+<td class="na">absent</td><td class="na">absent</td><td class="na">absent — no
+  <code>aria-describedby</code> attribute at all</td><td class="na">absent</td>
+<td>type a name, submit, then save</td></tr>
+<tr><td>14</td><td>Story3 · s3c (hint, mid-draft)</td><td>"Saved: Ada"</td><td>present</td>
+<td>present</td><td>"Saved: Ada", unaffected by the draft</td><td class="na">absent</td>
+<td>none needed</td></tr>
+<tr><td>15</td><td>Story3 · s3d (alert + hint combined)</td><td>"Saved: Ada"</td><td>present</td>
+<td>present</td><td>"Saved: Ada" — described <strong>second</strong></td>
+<td>"Please enter your name." — described <strong>first</strong></td>
+<td>type a name and submit, or activate "Greet me again" (Story2)</td></tr>
+<tr><td>16</td><td>Story3 · s3e (hint updates on replace)</td><td>"Saved: Grace"</td>
+<td>present, focused</td><td>present</td><td>"Saved: Grace"</td><td class="na">absent</td>
+<td>none needed</td></tr>
+<tr><td>17</td><td>Story4 · s4 (replaced, different name)</td><td>"Saved: Grace"</td>
+<td>present, focused</td><td>present</td><td class="na">not drawn in this story</td>
+<td class="na">absent</td><td>none needed</td></tr>
+<tr><td>18</td><td>Story4 · s4b (replaced, identical name)</td><td>"Saved: Ada", unchanged text,
+  re-announced</td><td>present, focused</td><td>present</td>
+<td class="na">not drawn in this story</td><td class="na">absent</td><td>none needed</td></tr>
+<tr><td>19</td><td>Story5 · s5 (fresh visit, after a save)</td><td>"No name saved yet."</td>
+<td class="na">absent</td><td class="na">absent</td><td class="na">absent</td>
+<td class="na">absent</td><td>type a name, submit, save — the whole loop is available again</td></tr>
+<tr><td>20</td><td>Story5 · s5b (fresh visit, after greet-again too)</td>
+<td>"No name saved yet."</td><td class="na">absent</td><td class="na">absent</td>
+<td class="na">absent</td><td class="na">absent</td><td>same as row 19 — identical shape regardless
+  of how much the prior visit used</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5. Wireframes — ASCII block layout, primary action marked</h3>
+<p>
+  The Saved name region drawn as a block, at its three distinct shapes. <code>[ PRIMARY ]</code>
+  marks the one action a visitor is being steered toward at that moment <em>within this region</em>
+  — a structural/interaction claim about which control is the obvious next step in the saved-name
+  flow, not a visual-styling instruction. Every other control in the region is drawn plain, and
+  there is never more than one <code>[ PRIMARY ]</code> per screen inside the region. This claim
+  does not extend to "Greet me": that button, and its filled dark treatment
+  (<code>form button { background: #1a1a1a; ... }</code>), predate this feature and belong to
+  <code>greet-visitor</code>'s own mockup — this feature does not reassign or contest its look.
+  Which control reads visually louder than which, screen-wide, once both regions coexist, is
+  <code>frontend-design</code>'s call to make with real tokens; this spec fixes structure only.
+</p>
+<div class="wireframe">Shape A — NOTHING-SAVED (Story 1 arrival, Story 5 fresh visit)
++-------------------------------------------------+
+| SAVED NAME                                       |  &lt;- h2, region label
+| No name saved yet.                               |
++-------------------------------------------------+
+  no controls — nothing to do here yet; the visitor's
+  one primary action is still up in the form ("Greet me")
+
+Shape B — SAVEABLE (Story 1, after a greeting, before saving)
++-------------------------------------------------+
+| SAVED NAME                                       |
+| No name saved yet.                               |
+|                                                   |
+|  [ Save this name ]&lt;PRIMARY&gt;                     |
++-------------------------------------------------+
+  one control, one action: capture the greeting just shown
+
+Shape C — SAVED / REPLACED (Story 1c onward)
++-------------------------------------------------+
+| SAVED NAME                                       |
+| Saved: Ada                                       |
+|                                                   |
+|  [ Save this name ]      [ Greet me again ]      |
++-------------------------------------------------+
+  two controls now coexist; neither is marked PRIMARY over the
+  other — replacing and re-greeting are equally valid next moves,
+  and the form's own "Greet me" remains the page's other action</div>
+
+<h3>6. A11y &amp; responsive notes</h3>
+<ul>
+  <li><strong>Labels &amp; names:</strong> the region has an explicit accessible name ("Saved
+    name") via <code>aria-label</code>, not just a visual heading — so
+    <code>getByRole('region', { name: 'Saved name' })</code> and a screen-reader's landmark list
+    agree. Both buttons carry their fixed accessible names as visible text content, never an
+    icon-only control, never interpolated with the saved name (feature.md Decisions: "control
+    names are fixed").</li>
+  <li><strong>Heading order:</strong> the region's own heading is an <code>&lt;h2&gt;</code>,
+    not an <code>&lt;h3&gt;</code> — <code>greet-visitor</code> never introduced a
+    <code>&lt;h2&gt;</code> on this screen, and that absence is exactly why this feature's own new
+    heading takes the next level down from the page's single <code>&lt;h1&gt;</code>, rather than
+    skipping one. A gap in the heading tree (h1 straight to h3, nothing at h2) is what axe's
+    heading-order rule and a screen reader's heading navigation both flag as broken; h1 &rarr; h2
+    has no gap to flag. <code>feature.md</code> fixes no heading level for the region, so h2 costs
+    nothing to choose.</li>
+  <li><strong>Keyboard path (tab order), unaffected by state:</strong> Name field &rarr; "Greet
+    me" (submit) &rarr; "Save this name" (only once rendered) &rarr; "Greet me again" (only once
+    rendered). Both new controls sit <em>after</em> the form in DOM order and are real
+    <code>&lt;button type="button"&gt;</code> elements outside the <code>&lt;form&gt;</code>
+    (feature.md Decisions), so Tab reaches them in that order and Enter/Space activates either —
+    no custom key handling, no tabindex tricks, nothing a keyboard-only visitor has to learn that
+    a mouse visitor does not.</li>
+  <li><strong>Visible focus:</strong> both new buttons get the same
+    <code>:focus-visible</code> outline as the existing "Greet me" button — <code>outline:
+    var(--focus-ring-width, 2px) solid #1a1a1a; outline-offset: var(--focus-ring-offset,
+    2px);</code>, the same two normative tokens <code>greet-visitor</code> already fixed
+    (<code>--focus-ring-width: 2px</code>, <code>--focus-ring-offset: 2px</code>), reused here
+    rather than invented. A screen drawn with a control mid-activation (e.g. after "Save this
+    name" is pressed) marks it with <code>class="is-focused"</code>, a static, non-functional
+    marker that renders the identical outline — never the <code>autofocus</code> attribute, which
+    would move real focus on page load and contradict the seed's "saving does not move focus".
+    Saving
+    is the one moment this matters most: the seed requires focus to <em>stay</em> on "Save this
+    name" after activation (feature.md: "the save control survives its own activation"), so the
+    visible focus ring must still be showing on that same button immediately afterward, not reset
+    to the document body.</li>
+  <li><strong>Focus after "Greet me again" (ux-decided, no AC covers it — see VH-ux-02):</strong>
+    <code>feature.md</code> fixes focus behaviour only for saving ("saving does not move focus";
+    Story 1's "Saving does not move focus" scenario, and Story 4's identical-replace scenario).
+    No acceptance criterion says where focus goes after <em>greeting again</em>. This spec fixes
+    it as the same rule: focus stays on "Greet me again" (drawn as s2d's
+    <code>class="is-focused"</code>), which is simply what a native <code>&lt;button&gt;</code>
+    does when nothing takes focus away — so it is the default a developer reaches by writing no
+    focus code at all, and it never destroys the focused control (the greet-again button survives
+    its own activation exactly as the save button does). The rejected alternative — moving focus
+    to the status region so the new greeting is read — was rejected because the status region is
+    already a live region and announces itself, and moving focus would strand a keyboard visitor
+    away from the control they just used. <strong>Normative for the developer: do not call
+    <code>focus()</code> anywhere in this feature.</strong></li>
+  <li><strong>Live region politeness, not shouted:</strong> the Saved name region carries
+    <code>aria-live="polite"</code> (never <code>assertive</code>) so a save never interrupts
+    anything already being read — consistent with <code>greet-visitor</code>'s own status region.
+    It deliberately does <strong>not</strong> carry <code>role="status"</code>, to avoid a second
+    element answering <code>getByRole('status')</code> in the already-merged
+    <code>greet-visitor</code> suite (feature.md Contract vocabulary, "Announced" — VH-02 is the
+    open human check on whether the bare attribute re-announces as reliably).
+    <code>feature.md</code>'s Contract vocabulary fixes <code>aria-live="polite"</code> directly
+    on the outer <code>role="region"</code> element itself, not on an inner paragraph — so on the
+    <em>very first</em> save (SAVEABLE &rarr; SAVED, e.g. s1b &rarr; s1c), the same DOM mutation
+    that changes the region's text also inserts "Greet me again" as a new child of that same live
+    region, and a screen reader may announce the whole of the region's new content, not the
+    paragraph's text alone. This is an accepted, known shape for this feature's chosen live
+    region — not scoped down to the paragraph only, because doing so would mean the region and the
+    hint no longer share one attribute contract — and it is exactly what VH-02(f) below asks a
+    human to confirm and record, alongside VH-02(a)-(e).</li>
+  <li><strong>Never colour alone:</strong> every state above is distinguished by its text alone —
+    "No name saved yet." vs. "Saved: Ada", the alert's own sentence, the hint's own sentence. No
+    screen in this file uses colour, an icon, or a border style as the <em>only</em> signal of
+    which state is showing; the neutral borders drawn in this lo-fi mockup are structural chrome,
+    not a colour system (styling proper is <code>frontend-design</code>'s call).</li>
+  <li><strong>Description order is structural, not just visual:</strong> when both the alert and
+    the hint describe the Name field, <code>aria-describedby="name-error saved-hint"</code> lists
+    the alert's id first — the browser concatenates accessible descriptions in <em>id-list
+    order</em>, not DOM order or visual order, so this is the one place order must be encoded in
+    the attribute itself, not just in how the two paragraphs are laid out on screen (see s3d in
+    Story 3, and the wireframe in section 3).</li>
+  <li><strong>Touch target &amp; contrast:</strong> both new buttons reuse
+    <code>greet-visitor</code>'s existing button styling, which already clears the 44&times;44px
+    WCAG 2.5.5 target and the 4.5:1 AA text-contrast floor (see that feature's own mockup, section
+    6) — no new token is introduced.</li>
+  <li><strong>Responsive:</strong> the Saved name region is block content in normal document flow,
+    same single-column layout as the rest of the screen; it reflows with the page and needs no
+    breakpoint of its own. It does not widen the page's existing max content width.</li>
+</ul>
+
+<h3>7. Handoff AC — the experience assertion the RTL/Vitest test must prove</h3>
+<p>
+  A visitor who has just been greeted can find and use "Save this name" and, later, "Greet me
+  again" using only the region's own visible text and the two controls' own fixed names — with no
+  instructional copy anywhere on the screen, exactly as the acceptance criteria in
+  <code>feature.md</code> already specify at the DOM level. Concretely, the following must all
+  hold without exception:
+</p>
+<ul>
+  <li>The Saved name region (<code>getByRole('region', { name: 'Saved name' })</code>) is present
+    on every render, in every one of the 20 states in the matrix above, and always appears after
+    the status region in document order.</li>
+  <li>Neither "Save this name" nor "Greet me again" is ever rendered disabled — each is either
+    fully present and operable, or entirely absent from the DOM (absent in rows 1, 2, 13, 19, 20; present and fully operable in rows 3-12 and 14-18).</li>
+  <li>Activating "Save this name" never moves focus away from it (row 5 onward), and never submits
+    the <code>&lt;form&gt;</code> (it sits outside it) — the greeting on screen is unchanged by a
+    save alone.</li>
+  <li>Activating "Greet me again" produces the same DOM outcome an ordinary greeting does (status
+    region re-render, alert cleared if standing, field untouched) with the saved name substituted
+    for the field's draft — rows 8-11.</li>
+  <li>When both the alert and the hint are present, the Name field's accessible description reads
+    the alert's text followed by the hint's, in that order, every time (row 15).</li>
+  <li>Activating "Greet me again" leaves focus on "Greet me again" (row 11), just as activating
+    "Save this name" leaves focus on "Save this name" — neither control is ever removed by its own
+    activation, and no <code>focus()</code> call exists anywhere in this feature (VH-ux-02).</li>
+  <li>A fresh visit (unmount/remount) always returns to Shape A, regardless of how far the prior
+    visit progressed through Shapes B/C (rows 19-20) — there is no reachable state a fresh visit
+    fails to clear.</li>
+</ul>
+
+</section>
+
+</body>
+</html>
