@@ -1,6 +1,7 @@
 # ADR-0019 — The saved name is a field of the existing `Visit` aggregate
 
-- **Status:** Proposed — accepted pending the human VERIFY gate (no code exists yet)
+- **Status:** **Accepted** (2026-08-23, at the human VERIFY gate). The code exists and is merged
+  to `main`; the suite is green at 61 tests.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.3, §2.4 INV-9/INV-11/INV-14)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

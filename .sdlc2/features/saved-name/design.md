@@ -478,6 +478,15 @@ would go red for a reason outside its own subject. The design therefore declares
 effective build order as **after 02**, and does not touch issue 04's acceptance criteria.
 Recorded for the human as **VH-03** and reflected in this node's `slices[].blockedBy`.
 
+> **SUPERSEDED (2026-08-23, VH-03).** The hazard above was refuted by the run that followed it.
+> Slices 02, 03 and 04 unblocked together off 01 and their developers started in the same second
+> (23:02:48) in three separate worktrees; **slice 04 passed on attempt 1**, review 0.94, while
+> slice 02 was still building. Slice 04's closed-list assertion tolerates the absent control by
+> construction — it uses `queryAllByRole`, which returns `[]` rather than throwing — so the loop
+> is a no-op until slice 02 lands and still catches a confirmation dialog, an undo control, or any
+> third button. **Do not act on the build-order constraint in this section.** Issue 04's
+> `Blocked by: 01` line stands unamended.
+
 ### 5.1 Which slices are red-first, and which are guards
 
 Slices **01, 02 and 03 are red-first** — each has scenarios that cannot pass until production code

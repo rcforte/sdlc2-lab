@@ -1,6 +1,7 @@
 # ADR-0024 — The Name field's description is one ordered `aria-describedby` list: alert first, hint second
 
-- **Status:** Proposed — accepted pending the human VERIFY gate (no code exists yet)
+- **Status:** **Accepted** (2026-08-23, at the human VERIFY gate). The code exists and is merged
+  to `main`; the suite is green at 61 tests.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.4 P9/P10, §4.3, §5.4)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

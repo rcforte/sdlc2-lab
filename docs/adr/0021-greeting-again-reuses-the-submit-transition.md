@@ -1,6 +1,7 @@
 # ADR-0021 — Greeting again is the existing `submit` transition, invoked by `greetAgain`
 
-- **Status:** Proposed — accepted pending the human VERIFY gate (no code exists yet)
+- **Status:** **Accepted** (2026-08-23, at the human VERIFY gate). The code exists and is merged
+  to `main`; the suite is green at 61 tests.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.4 INV-12, §3, §4.1)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

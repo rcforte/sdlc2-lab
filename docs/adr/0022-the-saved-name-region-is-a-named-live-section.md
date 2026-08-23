@@ -1,7 +1,10 @@
 # ADR-0022 — The Saved name region is a named `<section>` with `aria-live="polite"`, and never `role="status"`
 
-- **Status:** Proposed — accepted pending the human VERIFY gate. Additionally contingent on the
-  still-open **VH-02** (the human screen-reader check this decision's risk hangs on).
+- **Status:** **Accepted structurally** (2026-08-23, at the human VERIFY gate) — the code is merged
+  and the testable half is asserted. **The audible half remains unverified:** this decision's risk
+  still hangs on **VH-02 (c)**, which is open and needs a real screen reader. Specifically, whether
+  a bare `aria-live="polite"` with no `role` re-announces an *unchanged* string as reliably as
+  `greet-visitor`'s keyed `role="status"` region does is not yet known.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.4 P7, §4.2, §4.3, §5.4)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

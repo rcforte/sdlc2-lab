@@ -1,7 +1,9 @@
 # ADR-0023 — Every save is perceivable: the aggregate counts saves, the component renders that count as node identity
 
-- **Status:** Proposed — accepted pending the human VERIFY gate. The audible half is **VH-02**,
-  still open.
+- **Status:** **Accepted structurally** (2026-08-23, at the human VERIFY gate) — the code is merged
+  and the testable half is asserted. **The audible half is still open as VH-02** and needs a real
+  screen reader. "Every save is perceivable" is therefore a claim this repo has verified for
+  sighted visitors only.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` R15, §2.4 INV-11/P8, §5.4)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

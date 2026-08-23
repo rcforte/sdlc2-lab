@@ -1,6 +1,7 @@
 # ADR-0025 — One acceptance seam for the whole feature: `GreetingScreen.test.tsx`; no `App` scenario, no new component; 01–03 red-first, 04–05 guards
 
-- **Status:** Proposed — accepted pending the human VERIFY gate (no code exists yet)
+- **Status:** **Accepted** (2026-08-23, at the human VERIFY gate; all five slices built and merged)
+  — with **one correction**: the slice-04 build-order dependency below is **SUPERSEDED**, see VH-03.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §5, §5.1, §5.2, §5.3)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)
@@ -91,6 +92,13 @@ Rules that go with it:
   node's mandate); the constraint is declared in the design (§5), in this node's
   `slices[].blockedBy`, and for the human as **VH-03**.
 
+  > **SUPERSEDED (2026-08-23, VH-03).** The hazard did not exist. Slices 02, 03 and 04 built
+  > concurrently in three worktrees (developers all started 23:02:48) and **slice 04 passed on its
+  > first attempt** while 02 was still being built. Slice 04's assertion queries rather than gets
+  > (`queryAllByRole`), so an absent "Greet me again" yields zero iterations and the check still
+  > catches every control it was written to catch. Issue 04's `Blocked by: 01` was correct as
+  > written; this ADR's extra edge should not be applied.
+
 ## Consequences
 
 **Positive**
@@ -116,6 +124,9 @@ Rules that go with it:
 - Slice 04's declared build-order dependency is stricter than its issue's. Accepted as the
   conservative direction: an unnecessary ordering costs a little parallelism, a missing one costs a
   red lane on a slice that is correct.
+  **Overtaken by events (VH-03):** the run built 04 beside 02 and it passed, so the ordering was
+  the unnecessary kind. The deeper lesson is filed as SD-07 — a design node declaring a queue edge
+  that contradicts `issues/` is a hazard in itself, because only one of the two is executable.
 
 ## Related
 

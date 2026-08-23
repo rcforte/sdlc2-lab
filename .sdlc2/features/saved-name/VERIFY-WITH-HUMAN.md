@@ -307,3 +307,168 @@ when focus stays put, or a human stating that greeting again should hand focus t
 
 **Status: OPEN** — decided by the `ux` arbiter so the graph keeps moving; a human confirmation is
 welcome but nothing downstream is blocked on it.
+
+---
+
+# Human resolutions — 2026-08-23
+
+Appended, not edited: every record above stands as the node wrote it. This section records what a
+human decided about each, after the five slices were merged to `main` and with the run's own
+evidence available — which the deciding nodes did not have.
+
+Four of the six are **closed**. Two remain open, and both are open for the same reason run 1's
+VH-10 is: they need a real screen reader, and nothing at a terminal can substitute.
+
+| id | node | resolution | basis |
+| --- | --- | --- | --- |
+| VH-01 | po | **CLOSED — confirmed as proposed** | human decision |
+| VH-02 | ux | **STILL OPEN** | needs a screen reader |
+| VH-03 | architect | **CLOSED — the edge was unnecessary** | refuted by the run |
+| VH-04 | ux | **STILL OPEN** | needs a screen reader |
+| VH-ux-01 | ux | **CLOSED — the arbiter was right** | confirmed by the engine's own error |
+| VH-ux-02 | ux | **CLOSED — confirmed as decided** | human decision |
+
+---
+
+## VH-01 — CLOSED. Confirmed as proposed.
+
+The Saved name region reads `Saved: <name>` once a name is saved — the same string as the hint,
+confirmed by a human as agreed copy rather than `po`-proposed.
+
+**Why.** The two are two views of one fact, which is what the seed said they were, and the code
+already reflects that: `src/visit.ts:117` is the single place the phrasing exists
+
+```ts
+return visit.savedName === null ? null : `Saved: ${visit.savedName}`
+```
+
+and both the region and the hint consume it. A distinct second string would have split that one
+source in two to say the same thing twice.
+
+The record's "What would change my mind" is therefore not met: no distinct preferred string was
+stated. Every `Saved: <name>` assertion in the suite stands as written, and the
+`po-proposed, unconfirmed` marking on `feature.md`, `mockup.html` and the issue files is lifted.
+
+---
+
+## VH-03 — CLOSED. The queue edge was unnecessary; the `po`'s issue file was right.
+
+Not a judgement call in the end — **the run refuted the concern before it was raised**.
+
+The record feared that in a parallel lane run, slice 04 would go red because one of its steps
+names "Greet me again", which arrives with slice 02. That run happened. Slices 02, 03 and 04 all
+unblocked off 01 and their developers started in the same second (23:02:48) in three separate
+worktrees. **Slice 04 passed on attempt 1**, review score 0.94, with slice 02 still being built
+beside it.
+
+The reason is in slice 04's own test: the closed-list assertion tolerates the absent control by
+construction, because it queries rather than gets.
+
+```js
+for (const name of permittedRegionButtons) {
+  for (const button of screen.queryAllByRole('button', { name })) {
+    expect(region).toContainElement(button)   // absent control -> zero iterations
+  }
+}
+```
+
+`queryAllByRole` returns `[]` for a control that does not exist, so the loop is a no-op for
+"Greet me again" until slice 02 lands, and the assertion still catches exactly what it was written
+to catch — a confirmation dialog, an undo control, or any third button appearing in the region.
+The developer wrote the scenario knowing 02 was not on its branch, and said so in a comment.
+
+**Resolution.** No queue edge. `issues/04-replace-the-saved-name.md` stands unamended, including
+its `Not blocked by 02 or 03` line. `design.md` §5's "Build-order note for slice 04" and ADR-0025's
+corresponding note should be read as **superseded by this record** — left in place, because this
+file is append-only and those are the artifacts as produced, but not to be acted on.
+
+**The wider point, filed as SD-07.** The architect declared a `Blocked by:` edge in `design.md`
+that contradicted the `po`'s issue file. The engine ignored it and was right to — `baseFor()`
+reads `issues/`. But two artifacts of the same run asserted different dependency graphs with only
+one of them executable, and had the engine consulted `design.md` instead, **this run's diamond
+would have collapsed into a chain** — reproducing SD-01's symptom through a different door, in the
+very run built to prove SD-01 fixed. `issues/` should be the single source of truth for the queue,
+and a dependency disagreement should be a defect raised against the `po` node, not an edge
+declared downstream.
+
+---
+
+## VH-ux-01 — CLOSED. The arbiter's reading was correct, and is now confirmed rather than inferred.
+
+The arbiter judged that the checker's sole outstanding defect — `criterion: engine`, "maker agent
+returned nothing" — described a transport failure rather than a content defect, and kept the
+round-2 `mockup.html` instead of rewriting it under a deadline.
+
+It was reasoning from the artifact's existence. The engine's own failure record settles it
+directly:
+
+```
+[ux:make (2/2)] failed: API Error: Connection lost mid-response.
+```
+
+The maker's reply was lost in flight. Nothing was wrong with the artifact, and **no rubric
+criterion was ever failed on the merits** — none were evaluated, because there was nothing to
+evaluate. Option (c) was the right call and the four additive self-review corrections stand.
+
+**Consequence for the run's headline, worth stating plainly.** This run's *only* soft-pass was
+manufactured by a dropped connection. `ux` scored 0.79 against a 0.80 bar in round 1 — one repair
+round from passing on content — and that repair round is exactly what the transport error
+consumed. The node's reported verdict is therefore partly a measure of network luck, and its
+score history reads `0.79 → (no score)`, which is indistinguishable in shape from a maker that
+genuinely collapsed. Filed as SD-05: a call that fails at the transport layer should be retried
+before it is charged a round, and such a round should be reported as `errored`, not `rejected`.
+
+---
+
+## VH-ux-02 — CLOSED. Confirmed: focus stays on the activated control.
+
+Focus stays on "Greet me again" after it is activated, exactly as it stays on "Save this name" —
+one rule for both controls in the region, and the rule is *write no focus code at all*.
+
+**Verified in the shipped source, not just accepted:** there is no `.focus()` call anywhere in
+`src/`. The behaviour is what a native `<button>` does when nothing takes focus away, so there is
+no code to keep correct.
+
+**Why not move focus to the greeting.** The status region is already a live region and
+re-announces on every submission, including an unchanged one, by the keyed-child mechanism run 1
+established (R9 / VH-09). Moving focus would buy nothing the announcement does not already
+deliver, would strand a keyboard visitor away from a control they may want to press again, and
+would make two buttons in the same region behave differently for a reason no visitor could infer.
+
+**VH-ux-02 (a) remains queued** with the screen-reader pass below — this record closes the design
+question, not the audible one.
+
+---
+
+## VH-02 and VH-04 — STILL OPEN. The screen-reader pass, consolidated.
+
+Both records need assistive technology actually running. They are one pass, not two, and
+VH-ux-02 (a) joins them. Run against the dev server (`npm run dev`) with NVDA, VoiceOver or Orca
+active. All the code involved is merged to `main`, so the pass can be run now.
+
+| check | what to do | what to confirm |
+| --- | --- | --- |
+| VH-02 (a) | be greeted, activate "Save this name" | the region is announced once, reading "Saved: Ada" |
+| VH-02 (b) | with "Ada" saved, be greeted "Grace", save again | the **replacement** is heard — "Saved: Grace", not silence |
+| VH-02 (c) | with "Ada" saved, be greeted "Ada" again, save again | it announces **again** despite identical text |
+| VH-02 (d) | during (a)–(c) | the greeting status region is **not** re-announced by a save |
+| VH-02 (e) | tab to the Name field with a name saved | the hint is read as the field's **description** |
+| VH-02 (f) | the **very first** save only | record what is actually announced — "Saved: Ada" alone, or with "Greet me again" folded in as the button is inserted into the same live region |
+| VH-ux-02 (a) | with "Ada" saved and the greeting reading "Hello, Grace", activate "Greet me again" | "Hello, Ada" is announced **without** focus moving, and Enter greets again rather than doing something else |
+
+**(c) is the load-bearing one.** It decides whether a bare `aria-live="polite"` on the region —
+deliberately **not** `role="status"`, see ADR-0022 — re-announces an unchanged string as reliably
+as `greet-visitor`'s keyed `role="status"` region does. If it is silent, the fix is a developer
+concern (a stronger re-render key, or reconsidering the no-`role="status"` call against the cost
+of re-scoping run 1's existing bare `getByRole('status')` assertions). **No scenario's pass/fail
+logic changes either way** — this is why shipping the testable half was the right call.
+
+**(f) records rather than judges.** Whatever it reads, nothing changes structurally; the mockup
+already documents the folded-in announcement as an accepted shape.
+
+**This is the second run in a row to end here.** Run 1's VH-10 is still open for the same reason.
+Two features have now shipped their audible behaviour unverified, on the strength of a mechanism
+(the keyed child) that no automated test in this repo can observe. That is not a defect in either
+feature — it is the honest edge of what Vitest/jsdom can see — but it is worth noticing that the
+lab has accumulated a standing debt in exactly one place, and that the debt compounds: run 1's
+mechanism is now load-bearing for run 2's region, and nobody has heard either of them.
