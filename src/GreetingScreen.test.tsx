@@ -1532,6 +1532,33 @@ describe('Greeting screen', () => {
     expect(screen.queryByText('Saved: Ada')).toBeNull()
   })
 
+  // Scenario 3's removing half, owed by VH-06 and paid here. Slice 06 was cut from
+  // 01-hold-more-than-one-saved-name and had no "Remove <name>" control to press, so the half of
+  // the scenario that proves the hint *shrinks* could not run in that lane; VH-06 narrowed the
+  // scenario, wrote this assertion out, and named integration as the place it must land. Slices
+  // 03 and 06 are both merged now, so it lands.
+  //
+  // Its absence left exactly one wrong implementation alive: a hint that *accumulates* names into
+  // a string instead of projecting the current list. Every other slice-06 scenario passes against
+  // that, because saving only ever appends. This is the one that does not.
+  it('updates the hint when a saved name is removed', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await haveSaved(user, 'Ada', 'Bob')
+    // And the Name field is described by text reading "Saved: Ada, Bob"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob',
+    )
+
+    // When the visitor activates "Remove Ada"
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+
+    // Then the Name field is described by text reading "Saved: Bob"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Bob')
+  })
+
   // Scenario 4, with the list the merged one-name version cannot show: a hint sourced from the
   // Name field would read "Gr" here, and one showing only the newest saved name would drop Ada.
   it('still describes the Name field with every saved name while mid-draft', async () => {
