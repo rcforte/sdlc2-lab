@@ -29,6 +29,16 @@ const SAVE_CONTROL = 'Save this name'
 // naming a number the list does not actually stop at.
 const FULL_LIST_TEXT = 'Five names is the limit. Remove one to save another.'
 
+// The rows of the Saved names region, in the order they appear on screen — the one definition of
+// "the rows" in this file. Read through the region on every call rather than held in a variable,
+// because saving and removing replace nodes. It sits up here rather than beside the saved-names
+// scenarios because the constraint test reaches for the list too, and two spellings of the same
+// query is how the two drift apart. Rows are asserted by index (order) and by substring or scoped
+// query (contents), never by an anchored regex: a row's own controls join its text content
+// (design.md §5.4).
+const rowsInTheSavedNamesRegion = (): HTMLElement[] =>
+  within(screen.getByRole('region', { name: SAVED_NAMES_REGION })).queryAllByRole('listitem')
+
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
     // Given the visitor is on the greeting screen
@@ -424,15 +434,20 @@ describe('Greeting screen', () => {
   // reaches past the DOM on purpose. CLAUDE.md names this as the one sanctioned exception to
   // the DOM-only convention (VH-06, resolved in VH-15). It earns its place because the seed
   // forbids persistence outright and nothing else here can see a violation: the fresh-visit
-  // scenarios above only catch storage that is read back, and a write that is never read is
-  // invisible to every assertion in this file.
+  // scenarios only catch storage that is read back, and a write that is never read is invisible
+  // to every assertion in this file.
+  //
+  // Its exercise path covers the saved names as well as the greeting (design.md §4.3). A
+  // constraint test that never touched the list would not notice a write made on the way into
+  // it, and the list is the part of this visit most tempting to persist.
   it('never writes to web storage', async () => {
     const user = userEvent.setup()
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
 
     render(<GreetingScreen />)
 
-    // Every path that mutates the visit: a greeting, a blank rejection, and a correction.
+    // Every path that mutates the visit. First the greeting's three: a greeting, a blank
+    // rejection, and a correction.
     const nameField = () => screen.getByRole('textbox', { name: 'Name' })
     const submitControl = () => screen.getByRole('button', { name: 'Greet me' })
     await user.type(nameField(), 'Ada')
@@ -441,6 +456,19 @@ describe('Greeting screen', () => {
     await user.click(submitControl())
     await user.type(nameField(), 'Grace')
     await user.click(submitControl())
+
+    // …then the saved names' three, which are the writes remembered-names added: a save that
+    // appends, a save that is refused, and a removal.
+    const saveControl = () => screen.getByRole('button', { name: SAVE_CONTROL })
+    await user.click(saveControl())
+    // The second click really is refused — Grace is already saved, so the list still holds her
+    // one row. Asserted, not assumed: a refusal is a write of its own (INV-21) and so its own
+    // chance to persist something, and without this line the path could quietly stop containing
+    // one.
+    await user.click(saveControl())
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(1)
+    // The removal needs no such line: the control only exists because the save appended.
+    await user.click(screen.getByRole('button', { name: 'Remove Grace' }))
 
     expect(setItem).not.toHaveBeenCalled()
     expect(localStorage.length).toBe(0)
@@ -524,13 +552,6 @@ describe('Greeting screen', () => {
     // And no button named "Save this name" is present
     expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
   })
-
-  // The rows of the Saved names region, in the order they appear on screen. Read through the
-  // region on every call rather than held in a variable, because saving replaces nodes. Rows are
-  // asserted by index (order) and by substring or scoped query (contents), never by an anchored
-  // regex: a row's own controls join its text content in issues 02 and 03 (design.md §5.4).
-  const rowsInTheSavedNamesRegion = (): HTMLElement[] =>
-    within(screen.getByRole('region', { name: SAVED_NAMES_REGION })).queryAllByRole('listitem')
 
   // Two named steps for the Givens the scenarios below share, each asserting that the state it
   // claims to set up really arrived — so no scenario can pass from a Given that silently did not
@@ -1566,34 +1587,51 @@ describe('Greeting screen', () => {
   })
 
   // ---------------------------------------------------------------------------------------
-  // A fresh visit starts with nothing saved. Carried forward from the merged single-slot
-  // saved-name issue 05 and rewritten here for the region's new copy and its rows (design.md
-  // §4.3); remembered-names issue 07 replaces this pair with its own three scenarios.
+  // remembered-names issue 07 — A fresh visit starts with nothing saved. One acceptance test per
+  // Gherkin scenario, driven through the declared frontend seam from the same entry point as
+  // every scenario above.
   //
-  // Guard scenarios (design.md §5.1, ADR-0026): the saved names live in the one useState inside
-  // this component, so nothing survives a remount and there is no reset logic to get wrong. They
-  // are not decoration — they go red the moment that state is lifted out of the component (a
-  // module-level let, a context, a store), which is the realistic regression here, and the fix
-  // for a red bar is structural: put the state back, never add reset-on-mount logic on top of
-  // state that leaked.
+  // A guard block (design.md §5.1, ADR-0026): the saved names, the standing refusal and the
+  // revision counter are all fields of the visit, and the visit is the one useState inside
+  // GreetingScreen, so nothing survives a remount and there is no reset logic to get wrong.
+  //
+  // They are not decoration. They go red the moment that state is lifted out of the component —
+  // a module-level let, a context, a store — which is the realistic regression here, and if one
+  // does go red the fix is structural: put the state back inside the component. Never add
+  // reset-on-mount logic on top of state that leaked, which would make a fresh visit look clean
+  // while a second mounted screen still shared the first visitor's names.
   //
   // Each Given is asserted in full before the fresh visit, so no Then below can pass against a
   // screen that was already clean — an absence is only evidence when the thing was there first.
+  //
+  // What no scenario here can see: whether a real browser reload clears the visit. jsdom
+  // implements no navigation and no reload, so "starts a fresh visit" is this component
+  // unmounting and being rendered again (startAFreshVisit, above), and reload-survival stays a
+  // human check (greet-visitor VH-02) rather than being manufactured into an assertion that
+  // would pass without being true.
+  //
+  // Nor does any scenario here add a "writes nothing to web storage" step: that is the one part
+  // of this contract with no rendered form, and this repo keeps behaviour in the DOM. It is
+  // guarded instead by the constraint test above, whose exercise path covers a save, a refused
+  // save and a removal.
   // ---------------------------------------------------------------------------------------
 
-  it('starts with nothing saved on a fresh visit after saving', async () => {
+  it('starts clean on a fresh visit after saving several names', async () => {
     const user = userEvent.setup()
 
-    // Given the visitor saved "Ada" during a visit
+    // Given the visitor saved "Ada", "Bob" and "Cleo" during a visit
     const { unmount } = render(<GreetingScreen />)
-    await beGreeted(user, 'Ada')
-    await saveTheGreetedName(user, 'Ada')
-    // …and that visit really did reach the state whose absence is asserted below: a row for the
-    // saved name, the saved name at the field, and the save control on screen.
-    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Ada')
-    const previousVisit = screen.getByRole('region', { name: SAVED_NAMES_REGION })
-    expect(within(previousVisit).getAllByRole('listitem')).toHaveLength(1)
-    expect(within(previousVisit).getByRole('button', { name: SAVE_CONTROL })).toBeVisible()
+    await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+    // …and that visit really did reach the state whose absence is asserted below: three rows,
+    // both of a row's controls, the save control, and the hint at the Name field. Without these
+    // five lines, every Then below would be passing against a screen that was already clean.
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(3)
+    expect(screen.getByRole('button', { name: greetAgainControl('Ada') })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeVisible()
+    expect(screen.getByRole('button', { name: SAVE_CONTROL })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob, Cleo',
+    )
 
     // When the visitor starts a fresh visit
     startAFreshVisit(unmount)
@@ -1602,35 +1640,47 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
       NOTHING_SAVED_TEXT,
     )
-    // …and the previous visit's name is nowhere on the screen. Page-wide, because it had two
-    // homes — its row and the hint — and a visitor must not meet either one again.
-    expect(screen.queryByText('Ada')).toBeNull()
-    expect(screen.queryByText('Saved: Ada')).toBeNull()
-    // And no row is present at all
+    // …and holds no rows at all, which is the same absence read from the list's side: only a
+    // broken screen could carry the empty state and a leftover row at once, and this is the
+    // assertion that would notice.
     expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
     // And no button named "Save this name" is present
     expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
-    // And the Name field has no accessible description
+    // And no button named "Greet me again as Ada" is present
+    expect(screen.queryByRole('button', { name: greetAgainControl('Ada') })).toBeNull()
+    // And no button named "Remove Ada" is present
+    expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
+    // And the Name field has no description referring to saved names. Asserted as no description
+    // at all, which is stronger and is what an arriving visitor must meet: a field described by
+    // some other leftover would be the same bug wearing different words.
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
     // …with the attribute absent rather than emptied, exactly as on the very first arrival: an
     // empty aria-describedby is a dangling reference, not the same thing as nothing to say.
     expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+    // …and none of the three names is anywhere on the screen. Page-wide, because each had two
+    // homes — its own row and the hint — and a visitor must not meet either one again.
+    expect(screen.queryByText('Ada')).toBeNull()
+    expect(screen.queryByText('Bob')).toBeNull()
+    expect(screen.queryByText('Cleo')).toBeNull()
+    expect(screen.queryByText('Saved: Ada, Bob, Cleo')).toBeNull()
   })
 
-  // The merged pair's second scenario set its Given with the fixed-name "Greet me again" control,
-  // which this slice retires (design.md P18, VH-05). Its Given becomes the one thing this slice
-  // added that the single slot could not hold — a list of two — which is also the state issue
-  // 07's own first scenario starts from.
-  it('starts with nothing saved on a fresh visit after saving more than one name', async () => {
+  // Not a repeat of the scenario above. Its Given is a list that was *edited*, which is the state
+  // an implementation keeping the names outside the component would most plausibly get wrong: one
+  // that rebuilt the list on mount from a surviving write log would bring Bob back, and one that
+  // cached the removal apart from the list could bring Ada back too. Both pass the scenario
+  // above.
+  it('starts clean on a fresh visit after removing a name', async () => {
     const user = userEvent.setup()
 
-    // Given the visitor saved "Ada" and "Bob" during a visit
+    // Given the visitor saved "Ada" and "Bob" and then removed "Ada" during that visit
     const { unmount } = render(<GreetingScreen />)
-    await beGreeted(user, 'Ada')
-    await saveTheGreetedName(user, 'Ada')
-    await beGreeted(user, 'Bob')
-    await saveTheGreetedName(user, 'Bob')
-    expect(rowsInTheSavedNamesRegion()).toHaveLength(2)
+    await saveNamesInOrder(user, 'Ada', 'Bob')
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+    // …and the removal really happened, leaving exactly Bob's row behind.
+    const rowsBeforeTheFreshVisit = rowsInTheSavedNamesRegion()
+    expect(rowsBeforeTheFreshVisit).toHaveLength(1)
+    expect(rowsBeforeTheFreshVisit[0]).toHaveTextContent('Bob')
 
     // When the visitor starts a fresh visit
     startAFreshVisit(unmount)
@@ -1639,14 +1689,59 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
       NOTHING_SAVED_TEXT,
     )
-    // And neither saved name is anywhere on the screen: a list that survived a fresh visit
-    // partially would be worse than one that survived whole, so both are asserted page-wide.
-    expect(screen.queryByText('Ada')).toBeNull()
+    // And no row for "Bob" is present — the name that survived the removal must not survive the
+    // visit. Asserted from every side a row is visible from: the list holds no rows at all, both
+    // of the row's own controls are gone, and the name itself is nowhere on the page.
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: greetAgainControl('Bob') })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove Bob' })).toBeNull()
     expect(screen.queryByText('Bob')).toBeNull()
-    expect(screen.queryByText('Saved: Ada, Bob')).toBeNull()
-    // And the status region is present and contains no text — getByRole, not queryByRole, so a
-    // region that vanished on the remount fails loudly here instead of passing as "no text".
-    expect(screen.getByRole('status')).toHaveTextContent('')
+    // …and the removed name did not come back either — exactly what a mount that rebuilt the
+    // list from a surviving write log would do, and the only line here that would notice it.
+    expect(screen.queryByText('Ada')).toBeNull()
+  })
+
+  // The third state a visit can be left in, and the only one that is a *message* rather than a
+  // list: a refusal standing on screen when the visit ends. It kills a screen that clears the
+  // saved names on mount but not the refusal that explains them, which would meet an arriving
+  // visitor with a sentence about a limit they have not reached and a list they cannot see.
+  //
+  // One scenario covers both kinds of refusal, and that is a fact about the domain rather than a
+  // gap here. Every save writes its outcome to the single `lastSaveRefusal` field of the visit
+  // (src/visit.ts), which the screen renders through the one node `refusalText` feeds
+  // (src/GreetingScreen.tsx), so a visit can end with at most one refusal standing and whatever
+  // clears the full-list one clears the already-saved one with it. The already-saved refusal is
+  // driven across this seam by the issue 04 block below, and along the constraint test's path
+  // above.
+  it('starts clean on a fresh visit after a refused save', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved five names and then had a save refused with "Five names is the
+    // limit. Remove one to save another." during that visit
+    const { unmount } = render(<GreetingScreen />)
+    await haveAFullListAndBeGreetedAsASixthName(user)
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+    // …and the refusal really is standing in the region, over a list of five, as the visit ends.
+    const regionBeforeTheFreshVisit = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+    expect(within(regionBeforeTheFreshVisit).getByText(FULL_LIST_TEXT)).toBeVisible()
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(5)
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the Saved names region reads "No names saved yet."
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+    // And no text "Five names is the limit. Remove one to save another." is present. Page-wide,
+    // not scoped to the region: a refusal that survived a fresh visit is the same bug wherever
+    // on the screen it landed.
+    expect(screen.queryByText(FULL_LIST_TEXT)).toBeNull()
+    // …and the five names the limit was counting are gone with it, so the arriving visitor meets
+    // neither the message nor the list it was about.
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
+    expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
   })
 
   // ---------------------------------------------------------------------------------------
