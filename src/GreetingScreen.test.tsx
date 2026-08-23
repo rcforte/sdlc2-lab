@@ -22,6 +22,7 @@ const ALERT_TEXT = 'Please enter your name.'
 const SAVED_NAME_REGION = 'Saved name'
 const NOTHING_SAVED_TEXT = 'No name saved yet.'
 const SAVE_CONTROL = 'Save this name'
+const GREET_AGAIN_CONTROL = 'Greet me again'
 
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
@@ -654,5 +655,201 @@ describe('Greeting screen', () => {
     // And the Saved name region still reads "Saved: Ada" — being greeted is not choosing.
     expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent('Saved: Ada')
     expect(screen.queryByText('Saved: Grace')).toBeNull()
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // saved-name issue 02 — Greet me again as the saved name. One acceptance test per Gherkin
+  // scenario, driven through the declared frontend seam (RTL + user-event via Vitest/jsdom).
+  //
+  // Greeting again is an ordinary greeting (feature.md, Decisions): one existing transition with
+  // the saved name substituted for the field's draft. That is why the scenarios below assert the
+  // greeting, the alert, the draft and the saved name rather than a new notion of "greeting" —
+  // each Then is a consequence the ordinary submit already owns, and each fails against the
+  // tempting second transition that re-implements greeting and forgets one of them.
+  //
+  // What no scenario here asserts, deliberately: whether an unchanged greeting is re-announced.
+  // jsdom implements no live-region announcement, so "re-announces even when the name is
+  // unchanged" is a human check on the precedent greet-visitor set at VH-09/VH-10 (issue 02,
+  // Note). The testable half — the greeting still reads the saved name, and no alert appears —
+  // is the fourth scenario below.
+  // ---------------------------------------------------------------------------------------
+
+  it('offers no greet-again control while nothing is saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the visitor has not saved a name
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+
+    // Then no button named "Greet me again" is present
+    expect(screen.queryByRole('button', { name: GREET_AGAIN_CONTROL })).toBeNull()
+
+    // The same Given one moment later — a greeting has happened, and still nothing is saved.
+    // Without this beat nothing distinguishes "the control exists once a name is saved" from
+    // "the control exists once there has been a greeting", and the second rule leaves a visitor
+    // a button that greets them as nothing at all.
+    await beGreeted(user, 'Ada')
+    expect(screen.queryByRole('button', { name: GREET_AGAIN_CONTROL })).toBeNull()
+  })
+
+  it('offers the greet-again control once a name is saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada" and has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // Then a button named "Greet me again" is present inside the Saved name region
+    const region = screen.getByRole('region', { name: SAVED_NAME_REGION })
+    expect(within(region).getByRole('button', { name: GREET_AGAIN_CONTROL })).toBeVisible()
+  })
+
+  // The scenario the whole slice exists for: the saved name and the current greeting disagree on
+  // purpose, so "Hello, Grace" is the defect this catches — greeting again that read the field,
+  // or the latest greeting, instead of the saved name.
+  it('greets again as the saved name, not as the name most recently greeted', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has since been greeted "Hello, Grace"
+    await beGreeted(user, 'Grace')
+
+    // When the visitor activates "Greet me again"
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  })
+
+  // Before and after are byte-identical here, which is exactly why the scenario exists: an
+  // implementation that treated "the greeting already says this" as nothing to do would pass a
+  // casual reading and leave the visitor's click doing nothing. What a visitor hears is a human
+  // check (VH-02); what a test can see is that the greeting still reads the saved name and the
+  // screen reports no error for a submission that succeeded.
+  it('greets again even when the greeting already reads the saved name', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the greeting already reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor activates "Greet me again"
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+
+    // Then the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And no element with role "alert" is present
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // The scenario that fails against a second, separate notion of greeting: one that sets the
+  // greeting without going through the submission rules leaves "Please enter your name."
+  // standing directly beneath a fresh "Hello, Ada", saying two contradictory things about the
+  // same moment. Greeting again succeeded, so the error from the previous submission is gone.
+  it('clears a standing blank-name alert when greeting again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor submitted a blank Name field and an alert reads "Please enter your name."
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+
+    // When the visitor activates "Greet me again"
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And no element with role "alert" is present
+    expect(screen.queryByRole('alert')).toBeNull()
+    // …and the field carries no stale reference to the alert that is gone, so greeting again
+    // leaves the same clean field an ordinary successful greeting does.
+    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+  })
+
+  // Outcomes never write to the Name field — the rule greet-visitor established and this feature
+  // must not be the thing that breaks. The draft is unsent on purpose: an implementation that
+  // "helpfully" filled the field with the saved name would be caught only here.
+  it('leaves an unsent draft in the Name field untouched when greeting again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has typed "Grace" into the Name field without submitting — the field
+    // holds "Ada" from the greeting above, so it is cleared first.
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+
+    // When the visitor activates "Greet me again"
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+  })
+
+  // Being greeted is not choosing: the saved name changes only when the visitor saves. This is
+  // the mirror of slice 01's "a greeting alone never writes to the saved name", read from the
+  // greet-again control's side — an implementation that re-saved on its way through would leave
+  // the region reading "Saved: Ada" here by luck, so the Given greets "Grace" first to make the
+  // two disagree before the click.
+  it('does not change the saved name when greeting again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has since been greeted "Hello, Grace" via the ordinary submit control
+    await beGreeted(user, 'Grace')
+
+    // When the visitor activates "Greet me again"
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the Saved name region still reads "Saved: Ada"
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent('Saved: Ada')
+    expect(screen.queryByText('Saved: Grace')).toBeNull()
+  })
+
+  // Not a repeat of the draft scenario above, although the steps read alike: that one names the
+  // defect "greeting again wrote to the field", this one names "the control submitted the form".
+  // A <button> inside a <form> submits it by default, so a greet-again control placed there
+  // would greet from the field — "Hello, Grace" — while still looking correct in the markup.
+  it('does not submit the form when the greet-again control is activated', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the Name field now contains "Grace"
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+
+    // When the visitor activates "Greet me again"
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
   })
 })

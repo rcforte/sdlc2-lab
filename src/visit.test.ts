@@ -1,6 +1,7 @@
 import {
   ALERT_MESSAGE,
   alertText,
+  greetAgain,
   greetingText,
   isBlank,
   newVisit,
@@ -142,5 +143,17 @@ describe('Visit', () => {
 
     expect(savedNameRegionText(twice)).toBe('Saved: Ada') // same text …
     expect(twice.saveCount).toBe(2) // … different value
+  })
+
+  // -----------------------------------------------------------------------------------------
+  // saved-name issue 02 — greeting again. Everything the DOM can see is a scenario in
+  // GreetingScreen.test.tsx; only what no scenario can reach lives here (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-12: greeting again is total. No scenario can reach this, because P11 keeps the control
+  // absent until a name is saved — the rule exists so that a second caller (or a future control
+  // that forgets the condition) cannot greet the visitor as nothing at all.
+  it('does nothing when there is no saved name to be greeted as (INV-12)', () => {
+    expect(greetAgain(newVisit)).toBe(newVisit)
   })
 })
