@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { GreetingScreen } from './GreetingScreen'
 
@@ -16,6 +16,12 @@ const verbatim = { normalizeWhitespace: false }
 // the Gherkin rather than imported from src/visit.ts on purpose — a scenario that imported the
 // constant would pass whatever the constant happened to say.
 const ALERT_TEXT = 'Please enter your name.'
+
+// The saved-name feature's own literals, copied from issue 01's Gherkin for the same reason: a
+// scenario that imported NOTHING_SAVED_MESSAGE would pass whatever that constant happened to say.
+const SAVED_NAME_REGION = 'Saved name'
+const NOTHING_SAVED_TEXT = 'No name saved yet.'
+const SAVE_CONTROL = 'Save this name'
 
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
@@ -435,5 +441,218 @@ describe('Greeting screen', () => {
     expect(sessionStorage.length).toBe(0)
 
     setItem.mockRestore()
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // saved-name issue 01 — Save the name I was greeted as. One acceptance test per Gherkin
+  // scenario, driven through the declared frontend seam (RTL + user-event via Vitest/jsdom).
+  //
+  // The region's text is asserted as a substring, never with an anchored regex: the visible
+  // <h2>Saved name</h2> that gives the region its accessible name is part of its textContent
+  // (design.md §5.4). Where a scenario says a phrase is "no longer shown", the assertion is the
+  // page-wide queryByText, which is both stronger and unambiguous.
+  // ---------------------------------------------------------------------------------------
+
+  it('shows an empty Saved name region, after the status region, before any greeting', () => {
+    // Given the visitor is on the greeting screen
+    // And the visitor has not been greeted yet
+    render(<GreetingScreen />)
+
+    // Then the Saved name region is present
+    const region = screen.getByRole('region', { name: SAVED_NAME_REGION })
+    // And the Saved name region appears after the status region in the page
+    const status = screen.getByRole('status')
+    expect(status.compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // And the Saved name region reads "No name saved yet."
+    expect(region).toHaveTextContent(NOTHING_SAVED_TEXT)
+    // And the Saved name region has the attribute aria-live="polite"
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    // And no button named "Save this name" is present
+    expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
+  })
+
+  it('summons the save control once there has been a greeting', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And no button named "Save this name" is present
+    expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
+
+    // When the visitor types "Ada" into the Name field
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Ada')
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then a button named "Save this name" is present inside the Saved name region
+    const region = screen.getByRole('region', { name: SAVED_NAME_REGION })
+    expect(within(region).getByRole('button', { name: SAVE_CONTROL })).toBeVisible()
+  })
+
+  // Not a repeat of the scenario above: it fails against the plausible wrong rule "show the save
+  // control once the visitor has submitted something", which a blank submission also satisfies.
+  it('does not summon the save control when the submission was blank', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the visitor has not been greeted yet
+    expect(screen.getByRole('status')).toHaveTextContent('')
+
+    // When the visitor submits a blank Name field
+    // Then an alert reads "Please enter your name."
+    await submitABlankNameAndSeeTheAlert(user)
+
+    // And no button named "Save this name" is present
+    expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
+  })
+
+  // Two named steps for the Givens the scenarios below share, each asserting that the state it
+  // claims to set up really arrived — so no scenario can pass from a Given that silently did not
+  // happen. Written once here rather than copied into six scenarios in six slightly different
+  // shapes.
+
+  // Given the visitor has been greeted "Hello, <name>"
+  const beGreeted = async (user: UserEvent, name: string) => {
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), name)
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('status')).toHaveTextContent(exactly(`Hello, ${name}`), verbatim)
+  }
+
+  // And has saved "<name>"
+  const saveTheGreetedName = async (user: UserEvent, name: string) => {
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent(
+      `Saved: ${name}`,
+    )
+  }
+
+  it('saves the name the visitor was just greeted as', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved name region reads "Saved: Ada"
+    const region = screen.getByRole('region', { name: SAVED_NAME_REGION })
+    expect(region).toHaveTextContent('Saved: Ada')
+    // And "No name saved yet." is no longer shown — asserted page-wide, which is stronger than
+    // scoping it to the region and is how the empty state's disappearance is meant to read.
+    expect(screen.queryByText(NOTHING_SAVED_TEXT)).toBeNull()
+    // And the Saved name region still has the attribute aria-live="polite"
+    expect(region).toHaveAttribute('aria-live', 'polite')
+  })
+
+  // The save control survives its own activation: it is not inside the keyed child that the save
+  // replaces, so React keeps the same DOM node and the visitor is left exactly where they were.
+  // This is what makes a polite live region the right answer instead of moving focus.
+  it('leaves focus on the save control after saving', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the "Save this name" button still has focus
+    expect(screen.getByRole('button', { name: SAVE_CONTROL })).toHaveFocus()
+  })
+
+  // The scenario that fails any implementation sourcing the saved name from the Name field: the
+  // greeting and the draft deliberately disagree here, so "Saved: Grace" is the defect it exists
+  // to catch — a visitor could otherwise save a name they were never greeted as.
+  it('saves the greeting, never an untyped draft in the Name field', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor types "Grace" into the Name field without submitting
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+    // And the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved name region reads "Saved: Ada"
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent('Saved: Ada')
+    expect(screen.queryByText('Saved: Grace')).toBeNull()
+    // And the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+  })
+
+  it('leaves the saved name alone when a submission is blank', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada" and has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then an alert reads "Please enter your name."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+    // And the Saved name region still reads "Saved: Ada"
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent('Saved: Ada')
+    expect(screen.queryByText(NOTHING_SAVED_TEXT)).toBeNull()
+  })
+
+  // A <button> inside a <form> submits it by default, which would make saving a greeting — a
+  // defect that passes a casual reading of the markup and fails only in use. The draft and the
+  // greeting disagree here on purpose: if the save submitted the form, the greeting would move
+  // to "Hello, Grace" and this scenario is the only thing that would notice.
+  it('does not greet when the save control is activated', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    // And the Name field now contains "Grace"
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  })
+
+  // The other half of "the controls sit outside the form": Enter in the Name field still means
+  // exactly what it meant before this feature existed. Driven from the keyboard, because that is
+  // the only way this route into a submission is reachable.
+  it('still greets from the Name field when Enter is pressed, and does not resave', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada" and has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // When the visitor types "Grace" into the Name field — the field holds "Ada" from the
+    // greeting above, so it is cleared first: the Then below is about a field reading "Grace".
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+    // And the visitor presses Enter while focus is in the Name field
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    // Then the greeting reads "Hello, Grace"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Grace'), verbatim)
+    // And the Saved name region still reads "Saved: Ada" — being greeted is not choosing.
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent('Saved: Ada')
+    expect(screen.queryByText('Saved: Grace')).toBeNull()
   })
 })
