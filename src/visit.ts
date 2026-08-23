@@ -1,6 +1,9 @@
 /** Fixed alert copy. Human-confirmed and shortened — see VERIFY-WITH-HUMAN.md VH-15. */
 export const ALERT_MESSAGE = 'Please enter your name.'
 
+/** Fixed empty-state copy (seed, Agreed copy). */
+export const NOTHING_SAVED_MESSAGE = 'No name saved yet.'
+
 /** In-memory state of one visit. Replaced wholesale; never mutated. */
 export type Visit = {
   /** Trimmed and non-blank when present; null until the first successful submission. */
@@ -11,6 +14,14 @@ export type Visit = {
   readonly lastSubmissionWasBlank: boolean
   /** INV-8b. Blank submissions rejected this visit. Monotonic; same role as greetingCount. */
   readonly blankCount: number
+  /**
+   * INV-9. The one name this visit is holding onto; null until the first save. Trimmed and
+   * non-blank when present — it is a value greetedName already held, so it inherits INV-2
+   * rather than re-deriving it.
+   */
+  readonly savedName: string | null
+  /** INV-11. Saves performed this visit. Monotonic; identity, not a quantity to display. */
+  readonly saveCount: number
 }
 
 /** The state a fresh visit starts from. */
@@ -19,6 +30,8 @@ export const newVisit: Visit = {
   greetingCount: 0,
   lastSubmissionWasBlank: false,
   blankCount: 0,
+  savedName: null,
+  saveCount: 0,
 }
 
 /**
@@ -48,6 +61,11 @@ export function submit(visit: Visit, rawName: string): Visit {
     greetingCount: visit.greetingCount + 1,
     lastSubmissionWasBlank: false,
     blankCount: visit.blankCount,
+    // INV-13: only save() ever writes the saved name or the save count. This branch is an
+    // exhaustive literal, so forgetting to carry them is a compile error rather than a silent
+    // loss on every greeting. The blank branch spreads, so it carries them for free.
+    savedName: visit.savedName,
+    saveCount: visit.saveCount,
   }
 }
 
@@ -59,4 +77,35 @@ export function greetingText(visit: Visit): string {
 /** INV-5b. null when there is no error — the alert element is then absent (P2). */
 export function alertText(visit: Visit): string | null {
   return visit.lastSubmissionWasBlank ? ALERT_MESSAGE : null
+}
+
+/**
+ * INV-9, INV-10, INV-11. Captures the name the visitor is currently greeted as.
+ *
+ * It takes no name argument, and that absence is the guarantee: the greeting is the only possible
+ * source, so no caller can save a name the visitor was never greeted as (ADR-0020). Total — with
+ * no greeting there is nothing to save and the visit is returned unchanged. Replacing is not a
+ * second code path: the slot is a scalar, so a save with something already in it overwrites.
+ * Deliberately not value-idempotent — saveCount advances on every real save, which is what makes
+ * saving the same name twice audible instead of silent (INV-11).
+ */
+export function save(visit: Visit): Visit {
+  if (visit.greetedName === null) return visit
+  return { ...visit, savedName: visit.greetedName, saveCount: visit.saveCount + 1 }
+}
+
+/**
+ * INV-15. The one place the `Saved: ` phrasing exists, so the region and the hint that both show
+ * the saved name cannot drift apart. null when nothing is saved.
+ */
+export function savedNameText(visit: Visit): string | null {
+  return visit.savedName === null ? null : `Saved: ${visit.savedName}`
+}
+
+/**
+ * INV-16. The Saved name region's words. Total, because the region is always rendered (P7): it
+ * owns the empty-state decision so that no component ever types either string.
+ */
+export function savedNameRegionText(visit: Visit): string {
+  return savedNameText(visit) ?? NOTHING_SAVED_MESSAGE
 }

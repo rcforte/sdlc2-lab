@@ -1,4 +1,13 @@
-import { ALERT_MESSAGE, alertText, greetingText, isBlank, newVisit, submit } from './visit'
+import {
+  ALERT_MESSAGE,
+  alertText,
+  greetingText,
+  isBlank,
+  newVisit,
+  save,
+  savedNameRegionText,
+  submit,
+} from './visit'
 import visitSource from './visit.ts?raw'
 
 // INV-6b's "no ambient browser global" half is NOT implied by an empty import list: tsconfig
@@ -108,5 +117,30 @@ describe('Visit', () => {
     expect(blank2.blankCount).toBe(2)
     expect(blank2.greetingCount).toBe(greeted.greetingCount)
     expect(greetingText(blank2)).toBe('Hello, Ada')
+  })
+
+  // -----------------------------------------------------------------------------------------
+  // saved-name issue 01 — the saved name's own rules. Everything the DOM can see is a scenario
+  // in GreetingScreen.test.tsx; only what no scenario can reach lives here (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-10: save is total. No scenario can reach this, because P6 keeps the control absent until
+  // there has been a greeting — the rule exists so that a second caller (or a future control that
+  // forgets the condition) cannot invent a saved name out of nothing.
+  it('does nothing when there is no greeting to save (INV-10)', () => {
+    expect(save(newVisit)).toBe(newVisit)
+  })
+
+  // INV-11: every save is a new save, even an identical one. Without the counter the aggregate
+  // cannot tell a second save of the same name from no save at all, the rendered text never
+  // changes, and the live region falls silent on the visitor's second click. jsdom announces
+  // nothing, so the domain half is pinned here and audibility is a human check (VH-02(c)).
+  it('counts every save, so saving the same name again is still a new save (INV-11)', () => {
+    const greeted = submit(newVisit, 'Ada')
+    const once = save(greeted)
+    const twice = save(once)
+
+    expect(savedNameRegionText(twice)).toBe('Saved: Ada') // same text …
+    expect(twice.saveCount).toBe(2) // … different value
   })
 })

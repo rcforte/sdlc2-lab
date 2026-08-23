@@ -1,8 +1,17 @@
 import { useState, type FormEvent } from 'react'
-import { alertText, greetingText, newVisit, submit, type Visit } from './visit'
+import {
+  alertText,
+  greetingText,
+  newVisit,
+  save,
+  savedNameRegionText,
+  submit,
+  type Visit,
+} from './visit'
 
 const NAME_FIELD_ID = 'name'
 const ALERT_ID = 'name-error'
+const SAVED_NAME_HEADING_ID = 'saved-name-heading'
 
 export function GreetingScreen() {
   // Two component-local hooks, both dying at unmount: the visitor's draft (INV-6c) and the
@@ -65,6 +74,35 @@ export function GreetingScreen() {
       <p role="status" aria-live="polite">
         <span key={visit.greetingCount}>{greetingText(visit)}</span>
       </p>
+      {/* P7: the Saved name region, after the status region and rendered on every render from
+          first mount, so the live region is observed before its text arrives (the VH-04 lesson,
+          applied to a second region). A named <section> has the implicit role "region", and the
+          name comes from the visible heading via aria-labelledby, so the heading a visitor reads
+          and the name assistive technology announces are one DOM node that cannot drift. It
+          carries aria-live="polite" and deliberately never role="status": that role is the
+          greeting's alone, and a second one would make every bare getByRole('status') above
+          ambiguous (VH-02, ADR-0022). */}
+      <section aria-labelledby={SAVED_NAME_HEADING_ID} aria-live="polite">
+        <h2 id={SAVED_NAME_HEADING_ID}>Saved name</h2>
+        {/* P8: the words sit in one child keyed by saveCount, so saving the same name a second
+            time still replaces that node and the live region announces again instead of falling
+            silent, while the <section> and its <h2> keep their identity (ADR-0023; announcement
+            itself is a human check, VH-02, so no test here can see it). */}
+        <p>
+          <span key={visit.saveCount}>{savedNameRegionText(visit)}</span>
+        </p>
+        {/* P6: the affordance for INV-10 — there is nothing to save until there has been a
+            greeting, so the control is absent from the DOM rather than rendered disabled. A
+            disabled button is unfocusable and explains nothing about why it cannot be used. */}
+        {visit.greetedName !== null && (
+          // P12: type="button" and outside the <form>, so activating it is a save and never a
+          // submission; and it sits outside the keyed child above, so React reuses this same DOM
+          // node across a save and the visitor's focus survives its own click.
+          <button type="button" onClick={() => setVisit(save)}>
+            Save this name
+          </button>
+        )}
+      </section>
     </>
   )
 }
