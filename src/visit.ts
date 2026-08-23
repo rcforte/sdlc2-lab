@@ -230,6 +230,44 @@ export function remove(visit: Visit, name: string): Visit {
   )
 }
 
+/** INV-31. A day, in milliseconds, beside the one rule that reads it — never a number elsewhere. */
+const DAY_MS = 24 * HOUR_MS
+
+/**
+ * INV-31. Drops every saved name that is more than a day old, measured from its own saved-at
+ * moment. A name leaves on its own, with the visitor doing nothing, so that the list stays a
+ * record of names they still care about rather than everything they have ever typed.
+ *
+ * *Older than* a day, not *at least* a day: a name exactly DAY_MS old stays, which is the cutoff
+ * the strict comparison spells. Nobody can see the difference on a screen — it re-reads the clock
+ * once every fifteen seconds, so a row leaves at the first reading past its own mark and a reading
+ * landing exactly on that millisecond is a coincidence no visitor can arrange. It is written down
+ * because the words are "older than a day" and a rule should say what its words say.
+ *
+ * The cutoff is measured from the moment, so a calendar boundary is not a moment: a name saved at
+ * 23:50 is twenty minutes old at ten past midnight, exactly as it would be at ten past two.
+ *
+ * A fall-off is *a write to the list, not a tick* (seed, Agreed scope), and the way that is made
+ * true rather than remembered is that it leaves through withSavedNames like every other write —
+ * so it bumps the revision, the region has new contents to announce, and the freed slot is a real
+ * slot the next save can have. It is the ordinary list write's other half that decides the
+ * refusal: a standing "five names is the limit" described a list that no longer exists, and so it
+ * goes with the row (INV-20; the human check is VH-05).
+ *
+ * When nothing is old enough the visit is returned by identity, and that is what keeps the passage
+ * of time silent: React bails out of a state it is handed back unchanged, so the region's nodes
+ * survive a tick untouched and there is nothing for a screen reader to notice. A new object every
+ * fifteen seconds would announce the same list forever (R31).
+ *
+ * Like save, it is handed the instant rather than reading one: this module never reads a clock
+ * (INV-33), which is what keeps the cutoff a deterministic function of its arguments (ADR-0036).
+ */
+export function expire(visit: Visit, now: number): Visit {
+  const kept = visit.savedNames.filter((saved) => now - saved.savedAt <= DAY_MS)
+  if (kept.length === visit.savedNames.length) return visit
+  return withSavedNames(visit, kept, null)
+}
+
 /** INV-3. '' when there is no greeting yet — the status region is always rendered (P1). */
 export function greetingText(visit: Visit): string {
   return visit.greetedName === null ? '' : `Hello, ${visit.greetedName}`

@@ -3,6 +3,7 @@ import { clockTimeText, nowMs, TICK_MS } from './clock'
 import {
   ageReadingText,
   alertText,
+  expire,
   greetAgain,
   greetingText,
   newestSavedName,
@@ -46,8 +47,18 @@ export function GreetingScreen() {
   const [newestFirst, setNewestFirst] = useState<boolean>(false)
 
   // P25. The only thing in this app that happens without the visitor: one interval for the whole
-  // screen, never one per row, whose callback takes a single clock reading. Fifteen seconds is
-  // TICK_MS's business (src/clock.ts) — this component holds no period of its own.
+  // screen, never one per row, whose callback takes a single clock reading and feeds both of the
+  // things that depend on the time — the readings on the rows, and the cutoff that decides which
+  // rows there still are. One reading rather than two is what keeps those two from disagreeing
+  // inside a single tick, which would show as a row reading its age one moment after the moment
+  // that dropped it. Fifteen seconds is TICK_MS's business (src/clock.ts) — this component holds
+  // no period of its own.
+  //
+  // Nothing here moves focus, and that is the whole of "falling off is not a removal": the
+  // visitor activated no control, so nothing they were reaching for was destroyed and there is
+  // nowhere they need to be sent (P19 stays the removal handler's alone). A tick that expires
+  // nothing hands the same visit back, which React treats as no change at all, so the region's
+  // nodes survive an ordinary tick untouched and time passing stays unannounced (INV-31).
   //
   // The cleanup is load-bearing rather than tidy: without it a remount leaks a second interval,
   // and StrictMode mounts effects twice in development, so the leak would be there from the first
@@ -56,7 +67,13 @@ export function GreetingScreen() {
   // Known coupling (ADR-0041): the acceptance seam fakes setInterval, so a tick re-implemented
   // with chained setTimeouts would keep the screen honest in a browser and go untested here.
   useEffect(() => {
-    const tick = setInterval(() => setNow(nowMs()), TICK_MS)
+    const tick = setInterval(() => {
+      // P26, the same rule the save handler below follows: the reading is taken here and handed
+      // to the updater, never read inside it.
+      const at = nowMs()
+      setNow(at)
+      setVisit((current) => expire(current, at))
+    }, TICK_MS)
     return () => clearInterval(tick)
   }, [])
 
