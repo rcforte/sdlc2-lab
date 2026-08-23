@@ -388,6 +388,101 @@ the build already ignored, on a slice that already shipped.
 
 ---
 
+## SD-08 — The report could not say how the slices were built
+
+**Affected:** sdlc2 0.1.4 · **Status:** fixed in 0.1.5 (`[R-REP-05]`)
+**Severity:** medium · **Found in:** run `nf-20260823T1333Z` (`remembered-names`)
+
+Recorded here for continuity — the finding was worked in the plugin repo rather than this file.
+The scheduler knew whether it opened lanes and `log()`ed it, which reaches the person watching
+the run and nobody else. The report, the artifact that outlives the run, was never handed the
+fact, so run 3's report is silent in both directions: it does not say lanes fired, and they did.
+`[R-REP-05]` carries `lanes` from the scheduler through the build node to the report prompt, which
+is told to state it either way.
+
+---
+
+## SD-09 — Two different engines can both call themselves the same version, and pre-check 0 cannot tell
+
+**Affected:** sdlc2 0.1.6, and every version before it · **Status:** open
+**Severity:** high — it defeats SD-03's fix through the one door that fix cannot watch
+**Found:** 2026-08-23, **not by a run.** Found by diffing the plugin repo against the install
+cache while setting up run 5, after run 4's own fix had been committed.
+
+### What happened
+
+Run 4 (`nf-20260823T2033Z`, `saved-at`) executed a correctly installed engine. Its report header
+reads `Engine: sdlc2 0.1.6`, engine path `.../cache/sdlc2-marketplace/sdlc2/0.1.6`, and both were
+true: `v0.1.6` was tagged at `09839cf` and installed at that same sha.
+
+The run then found a defect — a fan-out node's row rendered as `build | pass | — | 0`, which reads
+as a node nobody measured when build had in fact been measured once per slice. It was fixed and
+pushed the same evening as `9966578` (`[R-REP-06]`), touching `new-feature.workflow.js`,
+`verify.mjs` and `SPEC.md`.
+
+`VERSION` was left at `0.1.6`.
+
+So from 18:35 EDT there were two trees calling themselves 0.1.6:
+
+| | commit | `[R-REP-06]` |
+|---|---|---|
+| plugin repo `main` | `9966578` | yes |
+| install cache `sdlc2/0.1.6` | `09839cf` | **no** |
+
+### Why pre-check 0 cannot see it
+
+Pre-check 0 resolves `${CLAUDE_PLUGIN_ROOT}`, reads the `VERSION` beside it, then compares the
+root's **directory name** against version-numbered siblings with `sort -V`. Executed against this
+state it prints:
+
+```
+sdlc2 0.1.6 — engine at /home/rcforte/.claude/plugins/cache/sdlc2-marketplace/sdlc2/0.1.6
+```
+
+and stops there. `0.1.6` is the newest sibling, so no `STALE` line fires, and the run proceeds on
+an engine three files behind the repo. The check is not broken — it is answering a different
+question. SD-03 was *older directory, newer one installed*, which a name comparison catches. This
+is *same directory name, different contents*, which no name comparison can catch.
+
+The next report would read `Engine: sdlc2 0.1.6` — true, and useless. It names the version, not
+the build.
+
+### Why it is worse than SD-03
+
+SD-03 cost ~6.3M agent tokens measuring a superseded engine, and surfaced only because a finding
+cited requirement IDs absent from the spec being read. That tell existed because the two engines
+were far enough apart to contradict each other. Same-version drift gives no such tell: the version
+line agrees with itself, the engine path is correct, and the delta is whatever was pushed since
+the last install — typically the newest fix, i.e. exactly the change the next run was meant to
+exercise.
+
+Note the shape of it. The thing that has actually been holding this line is a human convention —
+bump `VERSION` with every engine change, which is why the `v0.1.4` tag was created in the first
+place. The convention is sound and has held for five releases. It is not a check, and here it
+slipped for four hours across a commit that changes the engine.
+
+### What to do about it
+
+- **Catch it in the repo, at the moment of the mistake.** `verify.mjs` should fail when tracked
+  engine files differ from the tag named by `VERSION` — i.e. "you changed the engine without
+  bumping". That is the guard that would have fired at 18:35, before any drift existed, and it
+  costs one probe. This is the fix worth building.
+- **Make the report name the build, not just the version.** Stamp the commit sha into the plugin
+  at release (a `BUILD` file beside `VERSION`, or `0.1.7+9966578`) and have pre-check 0 print it
+  and pass it through as `version`. It does not prevent drift, but it makes a stale run
+  identifiable from its own report afterwards, which today it is not.
+- `installed_plugins.json` already records `gitCommitSha` per install, so the provenance exists on
+  the harness side — but the cache is a copy, not a git checkout, so the plugin has nothing to
+  compare against until it stamps itself. That is why the stamp comes first.
+
+### Immediate state
+
+Unblocked the usual way — `[R-REP-06]` ships as **0.1.7**, tagged and pushed. The install and the
+session restart are the human half, and are what SD-03 already requires. The finding stays open
+because nothing yet prevents the next recurrence.
+
+---
+
 ## What run `nf-20260822T2305Z` confirmed working
 
 Recorded because a findings file that lists only defects loses the evidence that the fixes landed.
