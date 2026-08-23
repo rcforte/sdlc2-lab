@@ -39,3 +39,12 @@ does not.
 
 The reminder at the Name field names the same names in the same order as the list, but tells no
 times.
+
+## Falls off
+
+A saved name leaving the list on its own, because its saved-at moment is more than a day old — a
+day counted from that moment, never from a calendar boundary.
+
+It is a write to the list rather than a change to how the list is drawn: the slot it held is given
+back, and the list reports the change the way it reports a removal. The visitor activated nothing,
+so nothing they were reaching for goes with it.

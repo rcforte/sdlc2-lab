@@ -2,6 +2,7 @@ import {
   ageReadingText,
   ALERT_MESSAGE,
   alertText,
+  expire,
   greetAgain,
   greetingText,
   isBlank,
@@ -26,6 +27,10 @@ const source = visitSource
 // merged call sites below pass a literal instant and assert exactly what they asserted before:
 // that they stayed literal is the evidence the domain is still deterministic.
 const AN_INSTANT = 1_700_000_000_000
+
+// The cutoff's own span, spelled out rather than imported: DAY_MS is private to src/visit.ts, and
+// a test that imported it would agree with whatever that constant happened to become.
+const A_DAY = 24 * 60 * 60 * 1000
 
 describe('Visit', () => {
   it('stays pure: no imports, no top-level mutable state, no ambient browser globals (INV-6b)', () => {
@@ -231,6 +236,44 @@ describe('Visit', () => {
     const bobSavedLaterButStampedEarlier = save(submit(ada, 'Bob'), AN_INSTANT - 60_000)
 
     expect(newestSavedName(bobSavedLaterButStampedEarlier)).toBe('Ada')
+  })
+
+
+  // -----------------------------------------------------------------------------------------
+  // saved-at — the day-old cutoff. A row disappearing is a scenario in GreetingScreen.test.tsx;
+  // the two cases here are the ones it cannot see: nothing happening, and the exact millisecond
+  // the rule turns over (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-31: a tick that finds nothing old enough is not a write to the list. No scenario can see
+  // "nothing happened" — an unchanged screen looks the same whether the visit was left alone or
+  // replaced by an identical copy — and the difference is the whole of "the passage of time is
+  // never announced": a new visit object every fifteen seconds would bump the revision, replace
+  // the region's nodes and give a screen reader something to say, over and over, forever.
+  it('returns the visit by identity when a tick drops nothing (INV-31)', () => {
+    const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
+
+    const ticked = expire(saved, AN_INSTANT + A_DAY - 1)
+
+    expect(ticked).toBe(saved)
+    expect(ticked.savedNamesRevision).toBe(saved.savedNamesRevision)
+  })
+
+  // INV-31, the millisecond the rule turns over: the cutoff is *older than* a day, so a name
+  // exactly a day old stays and one a millisecond past it goes (design.md §4.1). No acceptance
+  // criterion sits on that millisecond — inventing a scenario for it would be inventing a
+  // criterion — and everywhere else the two readings are indistinguishable, because the screen
+  // only looks once a tick and a real clock never lands on the mark.
+  it('keeps a name exactly a day old and drops one a millisecond older (INV-31)', () => {
+    const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
+
+    expect(expire(saved, AN_INSTANT + A_DAY)).toBe(saved)
+
+    const expired = expire(saved, AN_INSTANT + A_DAY + 1)
+    expect(expired.savedNames).toEqual([])
+    // A fall-off leaves through the same door every other write to the list uses, so the region
+    // has a new set of contents to announce (INV-21) rather than a row that silently vanished.
+    expect(expired.savedNamesRevision).toBe(saved.savedNamesRevision + 1)
   })
 
   // INV-19: remove is total. No scenario can reach this, because a name that is not saved has no
