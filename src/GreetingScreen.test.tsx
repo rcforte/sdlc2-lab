@@ -54,6 +54,18 @@ const rowFor = (name: string): HTMLElement => {
   return matches[0]
 }
 
+// The marker's own word, copied from issue 02's Gherkin rather than read off the component. It
+// sits out here beside the rows, and not inside the slice that introduced it, because issue 03
+// asks the same question of a row — whether the marker survives newest-first sorting — and two
+// spellings of one query is how the two would drift apart.
+const MARKER_TEXT = 'Newest'
+
+// "the row for <name> shows the label <Newest>" — the marker is a node of its own inside that
+// row, matched as that node's whole text, so it can never be satisfied by a row's other words.
+const expectMarkerOn = (name: string) => {
+  expect(within(rowFor(name)).getByText(MARKER_TEXT)).toBeInTheDocument()
+}
+
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
     // Given the visitor is on the greeting screen
@@ -2194,14 +2206,6 @@ describe('Greeting screen', () => {
   // the list.
   // -------------------------------------------------------------------------------------------
   describe('the newest marker', () => {
-    const MARKER_TEXT = 'Newest'
-
-    // "the row for <name> shows the label <Newest>" — the marker is a node of its own inside that
-    // row, matched as that node's whole text, so it can never be satisfied by a row's other words.
-    const expectMarkerOn = (name: string) => {
-      expect(within(rowFor(name)).getByText(MARKER_TEXT)).toBeInTheDocument()
-    }
-
     // "the row for <name> no longer shows the label <Newest>" — the same query, answered the other
     // way, so a marker that moved and a marker that was never there are not two different reads.
     const expectNoMarkerOn = (name: string) => {
@@ -2310,6 +2314,205 @@ describe('Greeting screen', () => {
       // Then no text reading "Newest" is present. Page-wide rather than scoped to the region, and
       // matched on an element's own whole text, so a marker rendered anywhere would be caught.
       expect(screen.queryAllByText(MARKER_TEXT)).toHaveLength(0)
+    })
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // saved-at, issue 03 — sorting the list newest-first.
+  //
+  // Sorting is a view, not a reordering: the visit goes on holding names in the order they were
+  // saved, and every scenario below that looks anywhere other than at the rows — at the Name
+  // field's hint, at what a removal takes out, at where a new save lands — is there to prove it.
+  // ---------------------------------------------------------------------------------------
+
+  describe('newest-first sorting', () => {
+    // The control's accessible name, copied from issue 03's Gherkin rather than read off the
+    // component: a scenario that asked the component what its control is called would pass
+    // whatever name the component happened to give it.
+    const SORT_CONTROL = 'Newest first'
+
+    // "a checkbox named 'Newest first'" — queried by role and accessible name, so a button
+    // wearing aria-pressed, or a checkbox whose label never reached it, does not answer here.
+    const sortControl = (): HTMLElement => screen.getByRole('checkbox', { name: SORT_CONTROL })
+
+    // "the Saved names region displays rows in the order …" — the whole display, asserted as an
+    // ordered list and never as a set: the length comes first, so no scenario can pass against a
+    // region holding a row it never mentioned.
+    const expectRowsInDisplayOrder = (...names: string[]) => {
+      const rows = rowsInTheSavedNamesRegion()
+      expect(rows).toHaveLength(names.length)
+      names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
+    }
+
+    it('displays the names in save order, with the control off, until the visitor asks otherwise', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob", "Cleo" — the list
+      // exactly as it read before this control existed
+      expectRowsInDisplayOrder('Ada', 'Bob', 'Cleo')
+      // And a checkbox named "Newest first" is present and unchecked
+      expect(sortControl()).not.toBeChecked()
+    })
+
+    it('reorders the display when the visitor checks "Newest first"', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+      // When the visitor checks "Newest first"
+      await user.click(sortControl())
+
+      // Then the Saved names region displays rows in the order "Cleo", "Bob", "Ada"
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+    })
+
+    it('returns to save order when the visitor unchecks "Newest first"', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+      expect(sortControl()).toBeChecked()
+      expectRowsInDisplayOrder('Bob', 'Ada')
+
+      // When the visitor unchecks "Newest first"
+      await user.click(sortControl())
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob" — the view is a way
+      // of looking at the list, so leaving it puts the visitor back where they started
+      expectRowsInDisplayOrder('Ada', 'Bob')
+      expect(sortControl()).not.toBeChecked()
+    })
+
+    // The scenario that proves sorting is a view rather than a reordering, at the one place the
+    // difference is visible: the hint reads the list the visit is holding, so if checking the box
+    // had reordered that list instead of the display, this is where it would show.
+    it('still lists the names in save order at the Name field while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+
+      // Then the Name field is described by text reading "Saved: Ada, Bob, Cleo"
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+        'Saved: Ada, Bob, Cleo',
+      )
+    })
+
+    // A removal is aimed by name, and the rows it is aimed at have moved. This fails an
+    // implementation that removes by position — which reads the same on the default view and
+    // takes out the wrong name the moment the display is reversed — and it re-asks both views
+    // afterwards, because a list that ends up right on screen while the visit holds something
+    // else is a defect the rows alone would not show.
+    it('removes the name the visitor named, not the row in that position, while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+      // And the visitor has checked "Newest first", so rows display "Cleo", "Bob", "Ada"
+      await user.click(sortControl())
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+
+      // When the visitor activates "Remove Bob"
+      await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+      // Then the Saved names region displays rows in the order "Cleo", "Ada"
+      expectRowsInDisplayOrder('Cleo', 'Ada')
+      // And the Name field is described by text reading "Saved: Ada, Cleo"
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+        'Saved: Ada, Cleo',
+      )
+    })
+
+    it('puts a newly saved name at the top while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+      expectRowsInDisplayOrder('Bob', 'Ada')
+
+      // When the visitor saves "Cleo". Saved by hand rather than through the named step, because
+      // that step looks for the new row at the end of the list — which is exactly where a name
+      // saved under this view must not be.
+      await beGreeted(user, 'Cleo')
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region displays rows in the order "Cleo", "Bob", "Ada" — the view is
+      // re-derived on every render, so a save is seen through it rather than appended to it
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+    })
+
+    // The marker earns its place in this view too, even though it lands on the top row: one rule
+    // for which row is the newest, whatever the visitor has done to the control (po Decisions).
+    it('still marks the newest name while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+
+      // Then the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+    })
+
+    // The product's keep-not-refresh decision, seen through the sort — the third of the four
+    // places the same answer has to hold. A save that moved the moment it found would leave the
+    // list reading the same way here on the default view and give itself away the moment the
+    // visitor reverses it.
+    it('reorders nothing under either view when an older name is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor is currently greeted "Hello, Ada"
+      await beGreeted(user, 'Ada')
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob"
+      expectRowsInDisplayOrder('Ada', 'Bob')
+
+      // When the visitor checks "Newest first"
+      await user.click(sortControl())
+
+      // Then the Saved names region displays rows in the order "Bob", "Ada" — Ada is still the
+      // older of the two, because the save that was refused left her moment where it was
+      expectRowsInDisplayOrder('Bob', 'Ada')
+    })
+
+    it('offers no way to sort while nothing is saved', () => {
+      // Given the visitor has not saved any name
+      render(<GreetingScreen />)
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        NOTHING_SAVED_TEXT,
+      )
+
+      // Then no checkbox named "Newest first" is present
+      expect(screen.queryByRole('checkbox', { name: SORT_CONTROL })).toBeNull()
+      // And no checkbox is present at all: a sort control rendered without its name would be a
+      // control the visitor trips over and cannot identify, which is worse than the one the
+      // criterion forbids.
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
     })
   })
 })

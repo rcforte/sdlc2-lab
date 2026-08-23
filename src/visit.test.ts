@@ -9,6 +9,7 @@ import {
   newVisit,
   remove,
   save,
+  savedNamesInView,
   submit,
 } from './visit'
 import visitSource from './visit.ts?raw'
@@ -231,6 +232,28 @@ describe('Visit', () => {
     const bobSavedLaterButStampedEarlier = save(submit(ada, 'Bob'), AN_INSTANT - 60_000)
 
     expect(newestSavedName(bobSavedLaterButStampedEarlier)).toBe('Ada')
+  })
+
+  // -----------------------------------------------------------------------------------------
+  // saved-at — the two views of one list. Which order a visitor actually sees is a scenario in
+  // GreetingScreen.test.tsx; the one case here is the one no scenario can reach, because the only
+  // clock the screen has moves forward and never backwards (design.md §4.1, §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-30: oldest-first is the order the names were *saved*, and never an ascending sort by
+  // moment. The two agree on every screen a visitor can produce, which is exactly why a scenario
+  // cannot tell them apart — reachable in life if a machine's clock is set back between two saves.
+  // The default view is the list as it reads today, so nothing moves under a visitor who never
+  // asked for a sort, whatever the moments say; only the newest-first view consults them, and here
+  // it answers differently from the positions it was handed.
+  it('leaves the default view in save order even when a moment disagrees with it (INV-30)', () => {
+    const ada = save(submit(newVisit, 'Ada'), AN_INSTANT)
+    const bobSavedLaterButStampedEarlier = save(submit(ada, 'Bob'), AN_INSTANT - 60_000)
+    const displayed = (newestFirst: boolean) =>
+      savedNamesInView(bobSavedLaterButStampedEarlier, newestFirst).map((saved) => saved.name)
+
+    expect(displayed(false)).toEqual(['Ada', 'Bob']) // save order, not the moments' order …
+    expect(displayed(true)).toEqual(['Ada', 'Bob']) // … which the moments happen to agree with
   })
 
   // INV-19: remove is total. No scenario can reach this, because a name that is not saved has no

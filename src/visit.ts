@@ -308,6 +308,27 @@ export function newestSavedName(visit: Visit): string | null {
 }
 
 /**
+ * INV-29, INV-30. The saved names in the order they are to be displayed: the order they were
+ * saved in, or the newest first when the visitor has asked for that.
+ *
+ * Sorting is a view, not a reordering, and this signature is what makes that structural rather
+ * than remembered: the choice is an argument to one projection and never a field of the visit, so
+ * there is no sorted list for a rule to read. Every other reader — save, remove, greetAgain and
+ * the hint at the Name field — goes on reading visit.savedNames, which is written by one function
+ * and holds the names in the order the visitor saved them. A sort cannot corrupt the order the
+ * rules read, because it never touches it: it returns a new array and stores nothing.
+ *
+ * The default is the list exactly as it reads today, and deliberately not an ascending sort by
+ * moment: the two agree on every screen a visitor can produce, but only save order guarantees
+ * that a row never moves unless the visitor asks it to. Only the newest-first view consults
+ * moments, and it consults the one ordering the newest marker already reads (ADR-0038), so the
+ * marked row and the top row can never be two different rows.
+ */
+export function savedNamesInView(visit: Visit, newestFirst: boolean): readonly SavedName[] {
+  return newestFirst ? byNewestFirst(visit.savedNames) : visit.savedNames
+}
+
+/**
  * INV-29. The saved names ordered latest moment first, ties broken in favour of the later save.
  * The one ordering by moment in this module, private so no caller can grow a second definition
  * of "newest" beside it.

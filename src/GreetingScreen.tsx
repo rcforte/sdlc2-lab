@@ -12,6 +12,7 @@ import {
   remove,
   save,
   savedNamesHintText,
+  savedNamesInView,
   submit,
   type Visit,
 } from './visit'
@@ -20,6 +21,7 @@ const NAME_FIELD_ID = 'name'
 const ALERT_ID = 'name-error'
 const SAVED_NAMES_HEADING_ID = 'saved-names-heading'
 const SAVED_NAMES_HINT_ID = 'saved-names-hint'
+const SORT_CONTROL_ID = 'newest-first'
 
 export function GreetingScreen() {
   // Two component-local hooks, both dying at unmount: the visitor's draft (INV-6c) and the
@@ -34,6 +36,14 @@ export function GreetingScreen() {
   // age reading on screen is derived from this one number, so all of them move together and none
   // of them can go stale on its own.
   const [now, setNow] = useState<number>(() => nowMs())
+
+  // P27, INV-30. Which way round the visitor wants to read the list — screen state, never domain
+  // state, and that is the whole of "sorting is a view, not a reordering": the visit is never told
+  // about it, so no rule that reads the list can see a sorted one. It starts false, which is
+  // oldest-first: the list reads exactly as it did before this control existed until the visitor
+  // asks for something else. It outlives an emptied list, because a preference is not a row
+  // (VH-04).
+  const [newestFirst, setNewestFirst] = useState<boolean>(false)
 
   // P25. The only thing in this app that happens without the visitor: one interval for the whole
   // screen, never one per row, whose callback takes a single clock reading. Fifteen seconds is
@@ -187,6 +197,29 @@ export function GreetingScreen() {
             twice a new DOM node, so the live region speaks again instead of falling silent
             (ADR-0030; announcement itself is a human check, VH-04(b)). */}
         {refusal !== null && <p key={visit.savedNamesRevision}>{refusal}</p>}
+        {/* P24: the way into the other view, inside the region it reorders and above the rows it
+            reorders, so the visitor reads the control before the order it explains (the mockup's
+            placement). A real checkbox and never a button wearing aria-pressed: checked and
+            unchecked is exactly what this is, and a checkbox says so to every visitor without the
+            component having to name a state. It is absent while nothing is saved rather than
+            disabled — there is no order to choose between until there are rows, and a disabled
+            control explains nothing about why it cannot be used (P17's rule, applied again). The
+            condition reads the visit's own list, never the view below it. Known consequence: the
+            control sits inside a polite live region, so flipping it changes that region's contents
+            (VH-03). */}
+        {visit.savedNames.length > 0 && (
+          <div>
+            <input
+              id={SORT_CONTROL_ID}
+              type="checkbox"
+              checked={newestFirst}
+              onChange={(event) => setNewestFirst(event.target.checked)}
+            />
+            {/* The name a visitor reads and the name assistive technology announces are one DOM
+                node, tied to the control by htmlFor, so the two cannot drift apart. */}
+            <label htmlFor={SORT_CONTROL_ID}>Newest first</label>
+          </div>
+        )}
         {/* P15: either the empty state or the rows, never both and never neither. key={name} is
             legitimate because INV-17 forbids duplicates, so appending leaves every existing
             row's DOM nodes — and the focus inside them, once issues 02 and 03 add controls —
@@ -196,7 +229,12 @@ export function GreetingScreen() {
           <p>{NOTHING_SAVED_MESSAGE}</p>
         ) : (
           <ul>
-            {visit.savedNames.map(({ name, savedAt }) => (
+            {/* P27: the rows come from the domain's view of the list, and this component never
+                sorts, reverses or compares moments itself — the order the visitor sees and the row
+                the marker sits on are two answers from one ordering rule, so they cannot disagree
+                (INV-29). key={name} is what carries a row's DOM node, and the focus inside it,
+                across a re-sort as well as across a save and a removal. */}
+            {savedNamesInView(visit, newestFirst).map(({ name, savedAt }) => (
               // P16: the row's own name first, then the controls that act on it — "Greet me
               // again as <name>" (issue 02), then "Remove <name>" (issue 03). The destructive
               // control comes last, so that neither keyboard order nor pointer aim puts Remove
