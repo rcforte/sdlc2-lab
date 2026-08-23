@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import {
   alertText,
+  greetAgain,
   greetingText,
   newVisit,
   save,
@@ -100,6 +101,19 @@ export function GreetingScreen() {
           // node across a save and the visitor's focus survives its own click.
           <button type="button" onClick={() => setVisit(save)}>
             Save this name
+          </button>
+        )}
+        {/* P11: the affordance for INV-12 — until a name is saved there is nobody to be
+            greeted as, so this control is absent from the DOM too. The condition is the saved
+            name, never the greeting: a control shown from the first greeting onwards would sit
+            there doing nothing until the visitor happened to save. */}
+        {visit.savedName !== null && (
+          // P12 again, and for the same two reasons: type="button" outside the <form> keeps
+          // this a greeting-again and never a submission of whatever the field happens to hold,
+          // and living outside the keyed child above means the visitor's focus survives the
+          // click that greets them.
+          <button type="button" onClick={() => setVisit(greetAgain)}>
+            Greet me again
           </button>
         )}
       </section>

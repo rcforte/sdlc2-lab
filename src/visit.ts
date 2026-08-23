@@ -95,6 +95,21 @@ export function save(visit: Visit): Visit {
 }
 
 /**
+ * INV-12. Greeting again is the same greeting: the one existing transition with the saved name
+ * substituted for the field's draft. The body delegates to submit and does nothing else, so
+ * re-announcement, the cleared alert, the untouched draft and the advanced greeting count are
+ * inherited rather than restated (ADR-0021). A second transition here would be a second, subtly
+ * different notion of what a greeting is — and would leave a stale alert standing beneath a
+ * fresh greeting. Total: with nothing saved there is nobody to be greeted as, and the visit is
+ * returned unchanged. savedName is non-blank by INV-9, so submit always takes its non-blank
+ * branch and greeting again can never be rejected as a blank submission.
+ */
+export function greetAgain(visit: Visit): Visit {
+  if (visit.savedName === null) return visit
+  return submit(visit, visit.savedName)
+}
+
+/**
  * INV-15. The one place the `Saved: ` phrasing exists, so the region and the hint that both show
  * the saved name cannot drift apart. null when nothing is saved.
  */
