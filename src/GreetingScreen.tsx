@@ -5,6 +5,7 @@ import {
   alertText,
   greetAgain,
   greetingText,
+  newestSavedName,
   newVisit,
   NOTHING_SAVED_MESSAGE,
   refusalText,
@@ -98,6 +99,12 @@ export function GreetingScreen() {
   // Why the last save attempt added nothing, in the words the domain owns (INV-26), or null when
   // it added a name. P14 decides only whether an element exists.
   const refusal = refusalText(visit)
+
+  // P23. Which saved name is the newest, or null when nothing is saved (INV-29). Read once for
+  // the whole list rather than once per row: the domain answers "which name is the most recent"
+  // in one place, and this component never scans the rows for a latest moment of its own, so the
+  // marker cannot develop a second definition of newest beside the domain's.
+  const newest = newestSavedName(visit)
 
   // P10 (supersedes P3): everything describing the field, in the order it is read. The error
   // about the submission just made outranks a standing piece of context, so the alert's id comes
@@ -212,6 +219,15 @@ export function GreetingScreen() {
                     requirement, not decoration being hidden — and it is why the row needs the
                     stable time above. Whether a real screen reader honours it is VH-02. */}
                 <span aria-hidden="true">{ageReadingText(savedAt, now)}</span>
+                {/* P23: the marker on the one row holding the newest name, so the visitor can
+                    find their most recent save at a glance instead of comparing every row's age
+                    reading. Exactly one row can carry it, because the domain answers with one
+                    name and no two rows share a name (INV-17). Deliberately not aria-hidden,
+                    unlike the reading above it: which name is newest is a fact about the list,
+                    not the passage of time, so a screen-reader visitor gets the same answer as a
+                    sighted one — and it is a word, never a colour or an icon alone, so nothing
+                    about it is lost in greyscale or forced colours. */}
+                {name === newest && <span>Newest</span>}
                 {/* P16, P12: a way back to this name without retyping it. The control carries
                     the row's name, which reverses the single slot's fixed-name rule and is
                     meant to (seed, Decisions): a row's control acts on one name for as long as

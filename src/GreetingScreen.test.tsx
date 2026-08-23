@@ -39,6 +39,21 @@ const FULL_LIST_TEXT = 'Five names is the limit. Remove one to save another.'
 const rowsInTheSavedNamesRegion = (): HTMLElement[] =>
   within(screen.getByRole('region', { name: SAVED_NAMES_REGION })).queryAllByRole('listitem')
 
+// "the row for <name>" — found by the row's own name, never by index: the saved-at scenarios are
+// about what one row says, and an index would quietly follow a different row the moment the list
+// changed shape. The name node is the only one in a row whose whole text is the name ("Greet me
+// again as Ada" and "Remove Ada" merely contain it), and finding exactly one row is asserted
+// rather than assumed. It sits beside the rows themselves, and not inside one slice's describe
+// block, because both saved-at slices ask the same question of a row and two spellings of it is
+// how the two would drift apart.
+const rowFor = (name: string): HTMLElement => {
+  const matches = rowsInTheSavedNamesRegion().filter(
+    (row) => within(row).queryByText(name) !== null,
+  )
+  expect(matches).toHaveLength(1)
+  return matches[0]
+}
+
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
     // Given the visitor is on the greeting screen
@@ -2024,19 +2039,6 @@ describe('Greeting screen', () => {
       })
     }
 
-    // "the row for <name>" — found by the row's own name, never by index: these scenarios are
-    // about what one row says, and an index would quietly follow a different row the moment the
-    // list changed shape. The name node is the only one in a row whose whole text is the name
-    // ("Greet me again as Ada" and "Remove Ada" merely contain it), and finding exactly one row
-    // is asserted rather than assumed.
-    const rowFor = (name: string): HTMLElement => {
-      const matches = rowsInTheSavedNamesRegion().filter(
-        (row) => within(row).queryByText(name) !== null,
-      )
-      expect(matches).toHaveLength(1)
-      return matches[0]
-    }
-
     // "the row for <name> shows the age reading <words>" — the reading is a node of its own,
     // matched as that node's whole text, so "saved 1 minute ago" can never be satisfied by
     // "saved 11 minutes ago" and a reading is never mistaken for the row's other words.
@@ -2176,6 +2178,138 @@ describe('Greeting screen', () => {
       // And no text reading "ago" is present. Page-wide rather than scoped to the region, and
       // matched on an element's own text, so a stray reading rendered anywhere would be caught.
       expect(screen.queryAllByText(/ago/)).toHaveLength(0)
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // saved-at issue 02 — The most recently saved name is marked.
+  //
+  // The marker's word is copied from this issue's Gherkin rather than imported from the
+  // component, for the reason the rest of this file already gives: a scenario that imported the
+  // word would pass whatever that word happened to become.
+  //
+  // No fake clock here, unlike issue 01's scenarios: not one of these criteria has time passing
+  // in it. The marker is a fact about which row holds the latest saved-at moment, and every
+  // scenario below establishes that fact by saving names, which is the visitor's only route into
+  // the list.
+  // -------------------------------------------------------------------------------------------
+  describe('the newest marker', () => {
+    const MARKER_TEXT = 'Newest'
+
+    // "the row for <name> shows the label <Newest>" — the marker is a node of its own inside that
+    // row, matched as that node's whole text, so it can never be satisfied by a row's other words.
+    const expectMarkerOn = (name: string) => {
+      expect(within(rowFor(name)).getByText(MARKER_TEXT)).toBeInTheDocument()
+    }
+
+    // "the row for <name> no longer shows the label <Newest>" — the same query, answered the other
+    // way, so a marker that moved and a marker that was never there are not two different reads.
+    const expectNoMarkerOn = (name: string) => {
+      expect(within(rowFor(name)).queryByText(MARKER_TEXT)).toBeNull()
+    }
+
+    // "exactly one row shows the label <Newest>" — counted over the rows themselves rather than
+    // over the markers, because the criterion is about rows: two markers inside one row would be
+    // a defect this would otherwise report as a pass.
+    const rowsShowingTheMarker = (): HTMLElement[] =>
+      rowsInTheSavedNamesRegion().filter((row) => within(row).queryByText(MARKER_TEXT) !== null)
+
+    it('marks the only saved name as the newest', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only — the named step asserts the "only", so no
+      // scenario below can pass from a list that quietly holds more than it claims.
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+
+      // Then the row for "Ada" shows the label "Newest"
+      expectMarkerOn('Ada')
+    })
+
+    it('moves the marker to a second name when it is saved', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only, and the row for "Ada" shows the label "Newest"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      expectMarkerOn('Ada')
+
+      // When the visitor saves "Bob"
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+
+      // Then the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the row for "Ada" no longer shows the label "Newest"
+      expectNoMarkerOn('Ada')
+    })
+
+    it('keeps the marker on exactly one row', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+      // Then exactly one row shows the label "Newest"
+      expect(rowsShowingTheMarker()).toHaveLength(1)
+      // And it is the row for "Cleo"
+      expect(rowsShowingTheMarker()[0]).toBe(rowFor('Cleo'))
+    })
+
+    it('moves the marker to the next-newest when the newest name is removed', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+
+      // When the visitor activates "Remove Bob"
+      await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+      // Then the row for "Ada" shows the label "Newest"
+      expectMarkerOn('Ada')
+    })
+
+    it('does not move the marker to an older name that is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the visitor is currently greeted "Hello, Ada"
+      await beGreeted(user, 'Ada')
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region reads "Ada is already saved." — the same refusal, in the same
+      // words, that this file already pins for issue 04 of remembered-names: re-saving a name
+      // leaves the list genuinely unchanged, moments and all, rather than moving a field nobody
+      // was told about.
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        ADA_ALREADY_SAVED_TEXT,
+      )
+      // And the row for "Bob" still shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the row for "Ada" does not show the label "Newest"
+      expectNoMarkerOn('Ada')
+    })
+
+    it('shows no marker at all while nothing is saved', () => {
+      // Given the visitor has not saved any name
+      render(<GreetingScreen />)
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        NOTHING_SAVED_TEXT,
+      )
+
+      // Then no text reading "Newest" is present. Page-wide rather than scoped to the region, and
+      // matched on an element's own whole text, so a marker rendered anywhere would be caught.
+      expect(screen.queryAllByText(MARKER_TEXT)).toHaveLength(0)
     })
   })
 })

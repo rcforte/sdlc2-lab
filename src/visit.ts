@@ -290,3 +290,41 @@ export function ageReadingText(savedAt: number, now: number): string {
 function counted(count: number, unit: string): string {
   return count === 1 ? `1 ${unit}` : `${count} ${unit}s`
 }
+
+/**
+ * INV-29. Which name is the newest — the one with the latest saved-at moment — or null when
+ * nothing is saved. What the newest marker marks, and what newest-first sorting will put first:
+ * both read the one ordering below, so the two can never disagree about which row is the most
+ * recent one, which would be a contradiction in the most visible place available (ADR-0038).
+ *
+ * The newest is defined by the moment and never by the position in the list. The two agree on
+ * every screen a visitor can actually produce, because the clock the transport reads moves
+ * forward — but a supplied instant is not something this module can vouch for (ADR-0034), so it
+ * trusts the moment rather than the order, which is what "most recent" means (seed, Ubiquitous
+ * language).
+ */
+export function newestSavedName(visit: Visit): string | null {
+  return byNewestFirst(visit.savedNames)[0]?.name ?? null
+}
+
+/**
+ * INV-29. The saved names ordered latest moment first, ties broken in favour of the later save.
+ * The one ordering by moment in this module, private so no caller can grow a second definition
+ * of "newest" beside it.
+ *
+ * The reverse before the sort is what settles a tie: Array.prototype.sort is guaranteed stable,
+ * so tied entries come out in the order they went in, and reversing first is what makes that the
+ * *later* save — the save the visitor made second, which is what they mean by newer.
+ *
+ * That reverse will read as redundant to anyone who has not hit a tie, so here is the tie: two
+ * saves inside one millisecond are enough, and three names saved under a stopped test clock tie
+ * exactly. Without the reverse they come back in save order, so the marker would sit on the first
+ * name saved rather than the last, and newest-first sorting would display the list oldest first —
+ * the opposite of the answer this function exists to give (design.md §5.4, measured).
+ *
+ * It sorts a copy. The visit goes on holding names in save order, which is what every rule that
+ * reads the list sees (INV-30).
+ */
+function byNewestFirst(savedNames: readonly SavedName[]): readonly SavedName[] {
+  return [...savedNames].reverse().sort((a, b) => b.savedAt - a.savedAt)
+}

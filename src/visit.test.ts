@@ -5,6 +5,7 @@ import {
   greetAgain,
   greetingText,
   isBlank,
+  newestSavedName,
   newVisit,
   remove,
   save,
@@ -199,6 +200,37 @@ describe('Visit', () => {
 
     expect(ageReadingText(savedAt, savedAt - 1)).toBe('saved just now')
     expect(ageReadingText(savedAt, savedAt - 3_600_000)).toBe('saved just now')
+  })
+
+  // -----------------------------------------------------------------------------------------
+  // saved-at — which name is the newest. The marker a visitor sees is a scenario in
+  // GreetingScreen.test.tsx; the two cases here are the ones no scenario can reach, because the
+  // only clock the screen has moves forward and never stands still (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-29: two names can share one moment — a clock with millisecond granularity and a visitor
+  // who saves twice quickly is enough — and "the newest" still has to be one name. The later save
+  // wins, because that is the one the visitor made most recently. No scenario can pin this:
+  // whether two clicks land in the same millisecond is an accident of how fast the machine
+  // running the suite happens to be.
+  it('breaks a tie between two identical moments in favour of the later save (INV-29)', () => {
+    const ada = save(submit(newVisit, 'Ada'), AN_INSTANT)
+    const bob = save(submit(ada, 'Bob'), AN_INSTANT)
+
+    expect(newestSavedName(bob)).toBe('Bob')
+  })
+
+  // INV-29: the newest name is the latest *moment*, never the last position in the list — the two
+  // agree on every screen a visitor can produce, which is exactly why the difference has to be
+  // pinned here rather than left to a scenario that could not tell them apart. Reachable in life
+  // if a machine's clock is set back between two saves; reachable here because the moment is
+  // handed to save rather than read by it (ADR-0036). The domain cannot vouch for a supplied
+  // instant and does not try: it trusts the moment, which is what "most recent" is defined as.
+  it('reads the newest name from the moment, never from the position in the list (INV-29)', () => {
+    const ada = save(submit(newVisit, 'Ada'), AN_INSTANT)
+    const bobSavedLaterButStampedEarlier = save(submit(ada, 'Bob'), AN_INSTANT - 60_000)
+
+    expect(newestSavedName(bobSavedLaterButStampedEarlier)).toBe('Ada')
   })
 
   // INV-19: remove is total. No scenario can reach this, because a name that is not saved has no
