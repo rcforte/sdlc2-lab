@@ -9,12 +9,19 @@ to chew on.
 > in the engine that ran, and both were already fixed upstream in 0.1.2 before this lab
 > reproduced them. They are kept because independent reproduction from outside the plugin is
 > worth having, and because the evidence is the regression test.
+>
+> The third run — `nf-20260822T2305Z`, feature `saved-name` — executed **0.1.3**, verified before
+> it started rather than after: the session's router text named the 0.1.3 directory, and a
+> discriminating probe confirmed the plugin root reached the persona *already expanded* to that
+> same directory. It is the first run in this repo whose engine version is evidence rather than
+> assumption, and it is what turns SD-01 and SD-02 from "fixed upstream" into "verified fixed".
 
 ---
 
 ## SD-01 — The build node picks a slice's branch base by index, not by `Blocked by:`
 
-**Affected:** sdlc2 0.1.1 · **Status:** fixed upstream in 0.1.2 (`baseFor()`, `[R-BUILD-04a]`)
+**Affected:** sdlc2 0.1.1 · **Status:** **VERIFIED FIXED** in 0.1.3 (`baseFor()`, `[R-BUILD-04a]`)
+— see *Verification* at the end of this finding
 **Severity:** high · **Found in:** run `nf-20260816T0246Z` (`greet-visitor`)
 
 ### What happened
@@ -68,11 +75,59 @@ not pass. 0.1.2 resolves it by splitting the rule and making the **tester** prov
 indistinguishable from a true negative when consumed with `||`. Reproducing SD-01 initially
 reported PASS for branches that no longer existed. Resolve the refs first.
 
+### Verification — run `nf-20260822T2305Z`, feature `saved-name`
+
+The `saved-name` seed was written so the `po` could not produce a chain without contradicting it:
+saving presupposes a greeting, while greeting again and the saved-name hint each presuppose a
+saved name and need **nothing from each other**. The seed stated those as domain facts and named
+no slices, so the `po` still had to find the shape. It found a larger one than predicted — five
+slices with three siblings and a two-blocker join:
+
+```
+        +-- 02 greet again --+
+01 -----+-- 03 hint at field-+-- 05 fresh visit
+        +-- 04 replace
+```
+
+Issue 04 volunteered the negative in its own `Blocked by:` line: *"Not blocked by 02 or 03."*
+
+The full ancestry matrix, every ref resolved first (see the note above):
+
+```
+            01    02    03    04    05
+    01       -   YES   YES   YES   YES
+    02       .    -     .     .    YES
+    03       .    .     -     .    YES
+    04       .    .     .     -     .
+    05       .    .     .     .     -
+```
+
+Every negative holds: `02` and `03` are siblings, and `04` is an ancestor of nothing. Under 0.1.1
+this matrix reads as a solid diagonal (`01 ⊂ 02 ⊂ 03 ⊂ 04 ⊂ 05`). **This is the assertion runs 1
+and 2 could not express** — run 1's four slices were mutually independent, so every stacking was
+vacuously consistent; run 2's `po` returned a pure chain, so there were no siblings at all.
+
+The two-blocker join is handled by an actual merge rather than by picking one blocker and
+re-implementing the other:
+
+```
+29c2817 Merge slice 02 into slice 05: inherit "Greet me again", never re-invent it
+```
+
+**The tester really did run the assertions** — all seven tester invocations call
+`git merge-base --is-ancestor`, 3–7 times each. That was the open question: the invariant is only
+real if something executes it.
+
+All five branches were re-run independently of the tester and are green — 42 / 51 / 47 / 45 / 58
+tests against a 31-test baseline.
+
+
 ---
 
 ## SD-02 — The run report is left untracked, dirtying the tree for the next run
 
-**Affected:** sdlc2 0.1.1 · **Status:** fixed upstream in 0.1.2 (`[R-REP-03]`)
+**Affected:** sdlc2 0.1.1 · **Status:** **VERIFIED FIXED** in 0.1.3 (`[R-REP-03]`)
+— see *Verification* at the end of this finding
 **Severity:** medium · **Found in:** run `nf-20260822T0327Z` (`greeting-log`)
 
 The build node committed the graph's artifacts (`7d12e31`), but the run report is written *after*
@@ -92,11 +147,20 @@ apart. In 0.1.1 no requirement covered committing it (`R-REP-01/02` cover only t
 Run 1 committed *none* of its artifacts; run 2 committed all but the report. The gap was already
 closing.
 
+### Verification — run `nf-20260822T2305Z`
+
+Clean. `sdlc2/saved-name` exists and carries the artifacts, `HEAD` is left on it,
+`git status --porcelain` is empty, and the report contains no `## Paperwork not committed`
+section. The next run is not blocked by this one.
+
+
 ---
 
 ## SD-03 — A session pins `${CLAUDE_PLUGIN_ROOT}` at start, so a mid-session plugin update is invisible
 
-**Affected:** the Claude Code plugin harness, not sdlc2 · **Status:** open
+**Affected:** the Claude Code plugin harness, not sdlc2 · **Status:** open — **did not recur** in
+`nf-20260822T2305Z`, because that session was started after the update and its resolved root was
+checked before spending. The mechanism is untouched; only this run's exposure to it was.
 **Severity:** high — silently runs a stale engine and invalidates everything measured with it
 
 ### What happened
@@ -137,3 +201,217 @@ directory that is both overwritten on update *and* already superseded.
   resolved path explicitly instead of relying on the injected router text.
 - When a finding cites a requirement ID that is absent from the spec you are reading, suspect
   version skew before concluding the ID does not exist.
+
+---
+
+## SD-04 — Parallel lanes break the declared test command, and gitignoring the worktrees is only half the fix
+
+**Affected:** sdlc2 0.1.3 · **Status:** open
+**Severity:** high — turns a green project red the moment `commands.install` is declared
+**Found in:** run `nf-20260822T2305Z` (`saved-name`), by the developer building slice 05
+
+### What happened
+
+`commands.install` unlocks parallel slice lanes: independent slices build concurrently, each in
+its own git worktree under `.sdlc2/worktrees/<feature>/<slice>`. Those worktrees are **inside the
+repository**, and each one gets its own `node_modules` from the install command.
+
+The declared test command then collects them. `npm test -- --run` in the main checkout globs into
+the sibling worktrees, loads their test files, and renders components against a **second copy of
+React**. Measured in this repo while the lanes were live:
+
+```
+without the exclusion:  16 test files,  98 failures
+                        every one: "Cannot read properties of null (reading 'useState')"
+with the exclusion:      4 files,       all passing
+```
+
+`.gitignore` was already correct — `76c4831` ignores `.sdlc2/worktrees/` and `.claude/worktrees/`,
+which is what `SETUP.md` asks for. That keeps the worktrees out of **git**. It does nothing about
+the **test runner**, and the test runner is the thing sdlc2 uses as its oracle.
+
+### Why it matters more than it looks
+
+The failure is *self-inflicted by the feature that was just switched on*, it appears only while
+lanes are running, and it makes every concurrent slice's suite red for a reason that has nothing
+to do with the slice. A tester seeing 98 failures has no way to tell that from a genuinely broken
+slice; the natural response is to escalate the slice as `tester-red`.
+
+This run survived it only because the developer diagnosed it, fixed `vite.config.ts`, and
+isolated the fix in its own commit with an explanation that it belongs on `main`:
+
+```
+29ca8fd chore: keep sibling git worktrees out of this project's vitest run
+```
+
+That is exemplary agent behaviour, and it should not be load-bearing. A different developer, or a
+stack whose runner is less forgiving, escalates instead.
+
+### What to do about it
+
+- `SETUP.md` and pre-check 4 should say that declaring `commands.install` also requires the
+  project's **test runner** to exclude the worktree path — not just git. Vitest needs
+  `test.exclude`; jest `testPathIgnorePatterns`; pytest `norecursedirs`; Maven is unaffected.
+- Better: put the worktrees **outside** the repository (a sibling temp dir), which removes the
+  whole class. The engine's own comment at `WORKTREES` explains why they are not under
+  `${DIR}` — the same reasoning extends one level further out.
+- Failing both, the lane setup could verify the baseline suite still passes *inside a worktree*
+  before handing slices to it, and fall back to sequential with a logged reason if not.
+
+---
+
+## SD-05 — A transport failure is scored as a content defect, and costs the node its pass
+
+**Affected:** sdlc2 0.1.3 · **Status:** open
+**Severity:** medium — manufactures soft-passes and VH records out of infrastructure noise
+**Found in:** run `nf-20260822T2305Z` (`saved-name`), `ux` node
+
+### What happened
+
+The run's **only** soft-pass was not a design failure. The workflow's own failure line reads:
+
+```
+[ux:make (2/2)] failed: API Error: Connection lost mid-response.
+```
+
+The round-2 checker saw an empty maker result and recorded its sole defect as *"maker agent
+returned nothing"* — critical. With the round budget spent, the node arbitrated to **soft-pass at
+0.79**, and the arbiter wrote `VH-ux-01`, which correctly reads the whole thing as *"an
+engine/transport failure rather than a content defect"* and keeps round 2's `mockup.html`.
+
+So the graph reached the right artifact. But on the way it burned a round, lost the node's clean
+pass, produced two VH records a human now has to read, and reported the run as not clean — all
+from one dropped connection.
+
+### Why it is worth filing
+
+`ux` scored **0.79** in round 1 against a 0.80 bar. It was one repair round from passing on
+content, and that repair round is exactly what the transport error consumed. The reported score
+of a node is therefore partly a measure of network luck.
+
+It also corrupts the very data 0.1.3 added the round histories to collect: `ux`'s history reads
+`0.79 → (no score)`, which is indistinguishable in shape from a maker that genuinely collapsed.
+
+### What to do about it
+
+- **Retry a maker/checker call that fails at the transport layer before charging it a round.**
+  The engine can already tell the difference — the failure arrives as a thrown API error, not as
+  a returned-but-empty result — so this is a `catch` around the spawn, not a heuristic.
+- Failing that, do not let an empty result from a *thrown* call reach the checker as an artifact
+  to score. An agent that never answered has not made a mistake worth a defect record.
+- The run report should mark such a round as `errored`, distinct from `rejected`, so the score
+  history stays readable.
+
+---
+
+## SD-06 — A background workflow makes no progress while the session sits idle
+
+**Affected:** the Claude Code harness, not sdlc2 · **Status:** open
+**Severity:** medium — no wrong results, but every wall-clock measurement is meaningless
+**Found in:** run `nf-20260822T2305Z`
+
+### What happened
+
+The graph was launched as a background `Workflow` and the session was then left idle awaiting
+user input. Agent completions stop dead for **three hours and one minute**, then resume within
+about a minute of the session becoming active again:
+
+```
+19:45:14   architect (opus)        <- last completion before the gap
+           ......  3h 01m, nothing  ......
+22:46:26   ux-design (sonnet)      <- first completion after the session woke
+```
+
+Total elapsed for the run was 4h 41m. Actual agent work was roughly 1h 40m.
+
+### Why it is worth filing
+
+Nothing about it is visible from inside the run. The report's timings, and any conclusion drawn
+from "how long does a graph take", are dominated by how often a human happened to type. A run
+that looks hung after an hour may simply have had nobody in the room.
+
+It also directly contradicts the natural operating model for a 35-agent graph — launch it and
+come back later — and it is the reason this run took an evening rather than two hours.
+
+### What to do about it
+
+- Do not walk away from a graph run; keep the session doing something, or drive it from a context
+  that stays active.
+- The run report already stamps a `runId`; stamping **agent wall-clock** separately from elapsed
+  time would make the distortion visible instead of silent.
+
+---
+
+## SD-07 — The architect can declare a dependency edge that contradicts the `po`'s issues, silently
+
+**Affected:** sdlc2 0.1.3 · **Status:** open
+**Severity:** medium — near-miss here; would have collapsed the diamond had the engine honoured it
+**Found in:** run `nf-20260822T2305Z` (`saved-name`), `VH-03`
+
+### What happened
+
+The `po` wrote issue 04 with an explicit negative:
+
+```
+Blocked by: 01-save-the-greeted-name (replacing presupposes an existing save). Not blocked by 02
+or 03 — this story exercises only the save control and the region it writes to.
+```
+
+The `architect` disagreed — it judged that one of issue 04's assertions needs slice 02's
+"Greet me again" control — and rather than amend the issue, **declared slice 04 blocked by 01 and
+02 in `design.md`/ADR-0025**, then raised `VH-03` asking a human to confirm the edge.
+
+The engine ignored it. `baseFor()` reads `issues/`, so slice 04 was cut from 01 alone, and the
+ancestry matrix confirms 04 is a descendant of 01 only. The developer resolved the tension inside
+the test instead, encoding the permitted controls as a closed list and noting in a comment that
+`"Greet me again"` ships with issue 02 and is not on this branch.
+
+### Why it is worth filing
+
+The outcome was right and the slicing survived — but two artifacts of the same run disagree about
+the dependency graph, and only one of them is executable. Had the engine consulted `design.md`,
+slice 04 would have been stacked on 02 and **this run's diamond would have collapsed into a
+chain** — silently reproducing SD-01's symptom through a different door.
+
+Note also what it implies about `VH-03`: a human reading it is being asked to confirm an edge that
+the build already ignored, on a slice that already shipped.
+
+### What to do about it
+
+- Make `issues/` the single source of truth for the queue, and say so in the architect's prompt:
+  a dependency disagreement is a **defect to raise against the `po` node**, not an edge to
+  declare downstream.
+- Or let the architect amend the issue file, and have the `po`-critic score the amendment. Either
+  is fine; having both artifacts assert a graph, with only one consulted, is not.
+- Cheapest guard: after the design node, assert that every `Blocked by:` edge mentioned in
+  `design.md` exists in `issues/`, and fail the node if it does not.
+
+---
+
+## What run `nf-20260822T2305Z` confirmed working
+
+Recorded because a findings file that lists only defects loses the evidence that the fixes landed.
+
+- **`baseFor()` / `[R-BUILD-04a]`** — see SD-01's *Verification*. First real-agent confirmation.
+- **Tester base assertions** — all 7 tester invocations executed `git merge-base --is-ancestor`.
+- **`[R-REP-03]`** — paperwork committed to `sdlc2/saved-name`, clean tree, `HEAD` parked there.
+- **Parallel lanes** — three developers started at the identical second (23:02:48) in three
+  worktrees, and `git worktree list` showed only the main checkout when the run ended, with all
+  five `slice/*` branches intact.
+- **`DOC_ROUNDS = 2`** — `po` passed unaided (0.72 → 0.88) and `architect` passed unaided
+  (round-1 rejection → 0.87), both without an arbiter. Run 1's "all three doc nodes burn all five
+  rounds and arbitrate anyway" is gone. Both still spend their full 2 rounds, though — neither
+  passed in one.
+- **Agent independence (`R-IND-02`)** — all 32 persona spawns were `sdlc2:sdlc2-*` types. A
+  discriminating probe run *before* any spending confirmed the `po` was the plugin persona and not
+  the global lookalike, on four markers the lookalike could not fabricate.
+
+### Still unanswered
+
+- **The veto-round question (`sdlc2-enhance-1.md` §1.1).** It asks whether any round scores
+  `>= bar` yet fails to pass. This run produced **no such round** — `po` 0.72 (below bar, no
+  pass), `ux` 0.79 (below bar, no pass), and the two rejected rounds carried no score at all. No
+  data either way; it needs another run.
+- **The plateau exit.** It did not visibly fire: all three doc nodes used exactly their 2 rounds.
+- **`hasUiStories`.** Set correctly here, but still unenforced — a `po` that sets it false on a
+  feature with a screen still skips `ux` with one log line.
