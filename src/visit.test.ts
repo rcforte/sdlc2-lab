@@ -5,6 +5,7 @@ import {
   greetingText,
   isBlank,
   newVisit,
+  remove,
   save,
   submit,
 } from './visit'
@@ -120,8 +121,8 @@ describe('Visit', () => {
   })
 
   // -----------------------------------------------------------------------------------------
-  // remembered-names issues 01 and 02 — the saved names' own rules. Everything the DOM can see
-  // is a scenario in GreetingScreen.test.tsx; only what no scenario can reach lives here
+  // remembered-names issues 01, 02 and 03 — the saved names' own rules. Everything the DOM can
+  // see is a scenario in GreetingScreen.test.tsx; only what no scenario can reach lives here
   // (design.md §5.3).
   // -----------------------------------------------------------------------------------------
 
@@ -156,5 +157,16 @@ describe('Visit', () => {
     const greeted = submit(newVisit, 'Bob')
 
     expect(greetAgain(greeted, 'Ada')).toBe(greeted)
+  })
+
+  // INV-19: remove is total. No scenario can reach this, because a name that is not saved has no
+  // row and therefore no "Remove <name>" control to press — the rule exists so that a second
+  // caller cannot make a removal out of nothing. Returned by identity, so a removal that could
+  // remove nothing is not counted as a write of the list either (INV-21), and the region is not
+  // asked to re-announce contents that did not change.
+  it('does nothing when the name to remove is not saved (INV-19)', () => {
+    const saved = save(submit(newVisit, 'Ada'))
+
+    expect(remove(saved, 'Zoe')).toBe(saved)
   })
 })
