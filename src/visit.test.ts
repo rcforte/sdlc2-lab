@@ -121,9 +121,8 @@ describe('Visit', () => {
   })
 
   // -----------------------------------------------------------------------------------------
-  // remembered-names issues 01, 02 and 03 — the saved names' own rules. Everything the DOM can
-  // see is a scenario in GreetingScreen.test.tsx; only what no scenario can reach lives here
-  // (design.md §5.3).
+  // remembered-names — the saved names' own rules. Everything the DOM can see is a scenario in
+  // GreetingScreen.test.tsx; only what no scenario can reach lives here (design.md §5.3).
   // -----------------------------------------------------------------------------------------
 
   // INV-18: save is total. No scenario can reach this, because P17 keeps the control absent until
