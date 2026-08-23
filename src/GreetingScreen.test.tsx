@@ -552,6 +552,20 @@ describe('Greeting screen', () => {
     expect(rowsInTheSavedNamesRegion().at(-1)).toHaveTextContent(name)
   }
 
+  // Given the visitor has saved "<name>", … in that order. Saving is the only route a visitor
+  // has into the list, so each name is greeted and then saved, and the step asserts the list it
+  // claims to have built really arrived, in the order it claims — no scenario below can pass
+  // from a Given that silently did not happen or that built the list backwards.
+  const saveNamesInOrder = async (user: UserEvent, ...names: string[]) => {
+    for (const name of names) {
+      await beGreeted(user, name)
+      await saveTheGreetedName(user, name)
+    }
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(names.length)
+    names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
+  }
+
   // The elements the field is described by, in the order the description is read — the order of
   // the ids in aria-describedby. A dangling id is a description a visitor never receives, so it
   // throws here rather than quietly shortening the list.
@@ -739,6 +753,190 @@ describe('Greeting screen', () => {
   })
 
   // ---------------------------------------------------------------------------------------
+  // remembered-names issue 02 — Greet again as any saved name. One acceptance test per Gherkin
+  // scenario, driven through the declared frontend seam (RTL + user-event via Vitest/jsdom).
+  //
+  // This block replaces the merged single-slot "Greet me again" scenarios, which slice 01
+  // retired: a control named "Greet me again" on a screen holding three saved names cannot say
+  // which one it means, so it comes back here per row, carrying its own row's name (seed,
+  // Decisions; design.md P16, P18; VH-05).
+  //
+  // The control's name is written out from issue 02's Gherkin rather than imported from the
+  // component, on purpose: a scenario that imported the label would pass whatever the label
+  // happened to say.
+  // ---------------------------------------------------------------------------------------
+
+  const greetAgainControl = (name: string) => `Greet me again as ${name}`
+
+  // The scenario this half of the walking skeleton exists for: the visitor is greeted as the
+  // *earlier* of two saved names, which is precisely what the single slot could never do. It
+  // fails against a screen that offers a way back only to the most recent name, and against a
+  // control that greets the most recent name whichever row it sits in.
+  it('greets again as an earlier saved name, not only the most recent', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob')
+    // And the visitor is currently greeted "Hello, Bob" — saving the second name leaves the
+    // visitor greeted as it, and it is asserted rather than assumed.
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Bob'), verbatim)
+
+    // When the visitor activates "Greet me again as Ada"
+    await user.click(screen.getByRole('button', { name: greetAgainControl('Ada') }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  })
+
+  // Each control is asserted *inside its own row*, which is what "a row's control" means and is
+  // stronger than finding both somewhere on the page: it fails a screen that offers one shared
+  // control, and one that pairs a row with a control naming a different row's name.
+  it("names each row's greet-again control after that row's own name", async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob')
+
+    // Then a button named "Greet me again as Ada" is present
+    const rows = rowsInTheSavedNamesRegion()
+    expect(within(rows[0]).getByRole('button', { name: greetAgainControl('Ada') })).toBeVisible()
+    // And a button named "Greet me again as Bob" is present
+    expect(within(rows[1]).getByRole('button', { name: greetAgainControl('Bob') })).toBeVisible()
+  })
+
+  // Greeting again is an ordinary greeting, so it must re-announce even when the words do not
+  // change — otherwise the visitor's press is met with a status region that is byte-for-byte
+  // what it already said, which a live region does not speak. The text alone cannot see this
+  // (it is identical before and after), so the observation is the node swap the keyed child
+  // produces. Whether a screen reader then actually speaks it is a human check (VH-04(e)).
+  it('re-announces the greeting when greeting again as the name already greeted', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and is currently greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    const announcedBefore = screen.getByRole('status').firstElementChild
+    expect(announcedBefore).not.toBeNull()
+
+    // When the visitor activates "Greet me again as Ada"
+    await user.click(screen.getByRole('button', { name: greetAgainControl('Ada') }))
+
+    // Then the status region's content is replaced so the greeting announces again
+    const announcedAfter = screen.getByRole('status').firstElementChild
+    expect(announcedAfter).not.toBe(announcedBefore)
+    expect(announcedBefore?.isConnected).toBe(false)
+    // And the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  })
+
+  // The alert is the discriminator here, not the greeting: a blank submission leaves an existing
+  // greeting exactly as it was (INV-4), so "Hello, Ada" would still be on screen after a control
+  // that did nothing at all. What fails such a control is the alert still standing beside a
+  // field the visitor never touched.
+  it('clears a standing blank-name alert when greeting again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has just submitted a blank Name field, so an alert reads "Please enter
+    // your name."
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+
+    // When the visitor activates "Greet me again as Ada"
+    await user.click(screen.getByRole('button', { name: greetAgainControl('Ada') }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And no alert is present
+    expect(screen.queryByRole('alert')).toBeNull()
+    // …and the field carries no stale reference to the alert that is gone: an aria-describedby
+    // naming a removed element is a description the visitor never receives. The hint's id is
+    // still there, and only it.
+    const field = screen.getByRole('textbox', { name: 'Name' })
+    expect(field).toHaveAccessibleDescription('Saved: Ada')
+  })
+
+  // The draft and the greeting deliberately disagree here: a control that wrote the saved name
+  // into the Name field (explicitly out of scope — outcomes never write to the field) would read
+  // "Ada" below, and one that submitted the form would greet "Hello, Grace".
+  it("leaves the visitor's draft in the Name field untouched when greeting again", async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has typed "Grace" into the Name field without submitting — the field holds
+    // "Ada" from the greeting above, so it is cleared first.
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+
+    // When the visitor activates "Greet me again as Ada"
+    await user.click(screen.getByRole('button', { name: greetAgainControl('Ada') }))
+
+    // Then the greeting reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+  })
+
+  // Being greeted and being saved are independent: greeting again reads the list and must not
+  // write it. This fails a greetAgain that re-saved the name it greets (a second Ada, or Ada
+  // moved to the end), and any implementation that rebuilt the list in greeting order.
+  it('leaves the saved names alone when greeting again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob')
+
+    // When the visitor activates "Greet me again as Ada"
+    await user.click(screen.getByRole('button', { name: greetAgainControl('Ada') }))
+
+    // Then the Saved names region still contains a row for "Ada" and a row for "Bob", in that
+    // order — asserted by the rows' indices, which is what "in that order" means on screen.
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Bob')
+  })
+
+  // A <button> inside a <form> submits it by default, which would make greeting again a
+  // submission of whatever the visitor happens to have typed — a defect that passes a casual
+  // reading of the markup and fails only in use. The draft and the greeting disagree on purpose:
+  // a submission would move the greeting to "Hello, Grace", and this is the only scenario that
+  // would notice.
+  it('does not submit the form when the greet-again control is activated', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the Name field now contains "Grace"
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+
+    // When the visitor activates "Greet me again as Ada"
+    await user.click(screen.getByRole('button', { name: greetAgainControl('Ada') }))
+
+    // Then the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+    // …and the greeting is the row's name, never the draft: the greeting is what a form
+    // submission would have moved, so it is what proves the control is outside the form.
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  })
+
+  // ---------------------------------------------------------------------------------------
   // Removing a saved name (issue 03). Lifting the single-slot limit took away the old escape
   // hatch — replacing — so without removal a name saved by mistake would sit on screen for the
   // rest of the visit, next to its own greet-again control. These scenarios are issue 03's
@@ -748,18 +946,6 @@ describe('Greeting screen', () => {
   // anchored regex: a row's own controls join its text content, so a row reads
   // "AdaRemove Ada" (design.md §5.4).
   // ---------------------------------------------------------------------------------------
-
-  // Given the visitor has saved "<name>", … in that order. Saving is the only route a visitor
-  // has into the list, so each name is greeted and then saved, and the step asserts the list it
-  // claims to have built really arrived — no scenario below can pass from a Given that silently
-  // did not happen.
-  const saveNamesInOrder = async (user: UserEvent, ...names: string[]) => {
-    for (const name of names) {
-      await beGreeted(user, name)
-      await saveTheGreetedName(user, name)
-    }
-    expect(rowsInTheSavedNamesRegion()).toHaveLength(names.length)
-  }
 
   // Every row carries its own remove control, named for its own name. Five buttons all reading
   // "Remove" would be indistinguishable to anyone not looking at the screen, and a fixed name

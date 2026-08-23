@@ -1,6 +1,7 @@
 import {
   ALERT_MESSAGE,
   alertText,
+  greetAgain,
   greetingText,
   isBlank,
   newVisit,
@@ -144,6 +145,17 @@ describe('Visit', () => {
 
     expect(refused.savedNames).toEqual(saved.savedNames) // the list is untouched …
     expect(refused.savedNamesRevision).toBe(saved.savedNamesRevision + 1) // … and still an event
+  })
+
+  // INV-22: greeting again is only ever greeting again as a name that is saved. No scenario can
+  // reach this — a control for an unsaved name is a control that is not on the screen — so the
+  // guard is pinned here. It is what keeps ADR-0020's no-argument guarantee alive now that the
+  // signature has had to grow one: the argument can only ever name a row the visitor can see.
+  // Returned by identity, so a call that could do nothing is not a greeting either (INV-8a).
+  it('does nothing when asked to greet again as a name that is not saved (INV-22)', () => {
+    const greeted = submit(newVisit, 'Bob')
+
+    expect(greetAgain(greeted, 'Ada')).toBe(greeted)
   })
 
   // INV-19: remove is total. No scenario can reach this, because a name that is not saved has no

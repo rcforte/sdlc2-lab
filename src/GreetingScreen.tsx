@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import {
   alertText,
+  greetAgain,
   greetingText,
   newVisit,
   NOTHING_SAVED_MESSAGE,
@@ -157,14 +158,29 @@ export function GreetingScreen() {
         ) : (
           <ul>
             {visit.savedNames.map((name) => (
-              // P16: the name, then the row's controls. "Greet me again as <name>" is issue 02;
-              // the destructive control comes last, so that neither keyboard order nor pointer
-              // aim puts Remove where a visitor reaching for Greet me again will land (ADR-0031).
+              // P16: the row's own name first, then the controls that act on it, with the
+              // destructive one last — so that neither keyboard order nor pointer aim puts
+              // Remove where a visitor reaching for Greet me again will land (ADR-0031).
               <li key={name}>
-                {name}
-                {/* Each row's control names its own row: a fixed "Remove" could not say which
-                    name it meant, and five identical names would be indistinguishable to anyone
-                    not looking at the screen (seed, Decisions). */}
+                <span>{name}</span>
+                {/* P16, P12: a way back to this name without retyping it. The control carries
+                    the row's name, which reverses the single slot's fixed-name rule and is
+                    meant to (seed, Decisions): a row's control acts on one name for as long as
+                    the row exists, so it cannot drift, while five buttons all announcing "Greet
+                    me again" would be indistinguishable to anyone not looking at the screen.
+                    type="button" and outside the <form>, so activating it greets as this name
+                    and never submits the visitor's draft; and no control sits inside a keyed
+                    node, so React reuses this DOM node and the visitor's focus survives its own
+                    click (P19: greeting again moves focus nowhere). */}
+                <button
+                  type="button"
+                  onClick={() => setVisit((current) => greetAgain(current, name))}
+                >
+                  Greet me again as {name}
+                </button>
+                {/* The same rule from the other side: a fixed "Remove" could not say which name
+                    it meant, and five identical ones would be indistinguishable to anyone not
+                    looking at the screen (seed, Decisions). */}
                 <button type="button" onClick={() => removeSavedName(name)}>
                   Remove {name}
                 </button>
