@@ -36,20 +36,40 @@ acceptable.
 
 ## VH-02 — The screen-reader pass: does a ticking row stay silent, and is the row's label heard?
 
-**Severity:** high — it is the mechanism of a headline requirement, and jsdom cannot see any of it.
+**Severity:** high — it is the mechanism of a headline requirement, and jsdom cannot see the half
+that matters most.
 
 The seed requires that **the passage of time is never announced** while a row's own changes still
 are. The design achieves this with two attributes (ADR-0040): `aria-hidden="true"` on the age reading
 so a tick mutates nothing in the accessibility tree, and `aria-label` on the `<li>` so the row has an
 unchanging name in the age reading's place.
 
-Nothing in the suite can verify either behaviour — jsdom implements no live-region announcement, and
-`aria-label` on a non-interactive element is honoured differently by different screen readers.
+**Narrowed after the merge.** This row originally said nothing in the suite could verify either
+behaviour. That was true of *announcement* and false of its **precondition**, which is now covered by
+a constraint test — *leaves nothing an assistive technology can perceive changed by a tick* in
+`src/GreetingScreen.test.tsx`. It saves two names, advances the clock five minutes, proves the
+readings on screen moved, and then asserts that the region's perceivable text (everything outside an
+`aria-hidden` subtree) and every row's accessible name are byte-identical to what they were. It also
+proves the measure is not deaf, by removing a name and watching it change.
+
+Deleting the `aria-hidden` attribute makes exactly that test fail and nothing else — verified by
+mutating the component. So a regression that reopens this hole is caught in CI rather than by a human
+repeating the pass.
+
+**What remains for a human, and why it cannot be automated:** whether a screen reader *honours* that
+tree. jsdom implements no live-region announcement at all, and whether a mutation inside an
+`aria-hidden` subtree of a polite region stays silent — and whether `aria-label` on a non-interactive
+`<li>` is read at all — is each screen reader's own behaviour, not this codebase's.
 
 **Confirm, with a real screen reader:** sit on the screen with two or three saved names for several
 minutes and (a) hear **nothing** while the readings count up; (b) hear the row's name and its stable
 time when moving through the list; (c) hear the `Newest` marker; (d) still hear the region when a name
-is saved, refused or removed. If (a) fails, the design is wrong, not the copy.
+is saved, refused or removed.
+
+If (a) fails, the design is wrong, not the copy — and note what the constraint test has already ruled
+out as the cause: it will not be that the app changed something perceivable. It will be that the
+screen reader re-reads the region regardless. The fix would then be structural — move the ticking text
+out of the live region entirely, rather than hide it inside one.
 
 ---
 

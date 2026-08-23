@@ -2160,6 +2160,62 @@ describe('Greeting screen', () => {
       expectAgeReading('Ada', 'saved 5 minutes ago')
     })
 
+    // A CONSTRAINT TEST — the sanctioned exception in CLAUDE.md. It asserts that something never
+    // happens: that nothing an assistive technology can perceive inside the region changes while
+    // the clock runs. An absence has no rendered form, so this has to reach past the rendered text
+    // and read the shape of the accessibility tree (which nodes aria-hidden removes from it).
+    //
+    // What it does NOT prove is silence, and the distinction is the whole reason it is worth
+    // having. jsdom implements no live-region announcement, and whether a given screen reader
+    // honours aria-hidden for a mutation inside a live region is that screen reader's business —
+    // that half stays VH-02 and stays open. What this proves is silence's *precondition*: that a
+    // tick leaves the region's perceivable content byte-identical. If that ever stops holding,
+    // announcement is certain rather than merely possible, and the design is broken — and this
+    // fails in CI long before anyone thinks to repeat the screen-reader pass by hand.
+    const perceivableRegionText = (): string => {
+      const copy = screen
+        .getByRole('region', { name: SAVED_NAMES_REGION })
+        .cloneNode(true) as HTMLElement
+      copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove())
+      return copy.textContent ?? ''
+    }
+
+    // Every row's accessible name, in row order. The names live in attributes rather than in text,
+    // so the measure above cannot see them and they need their own.
+    const rowNames = (): (string | null)[] =>
+      rowsInTheSavedNamesRegion().map((row) => row.getAttribute('aria-label'))
+
+    it('leaves nothing an assistive technology can perceive changed by a tick (VH-02)', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+      const perceivableBefore = perceivableRegionText()
+      const namesBefore = rowNames()
+
+      // When 5 minutes pass with the visitor doing nothing
+      await timePasses(5 * 60_000)
+
+      // Then the readings on screen have moved — asserted first, because without it this scenario
+      // would pass on a clock that never ticked at all and prove nothing whatsoever
+      expectAgeReading('Ada', 'saved 5 minutes ago')
+      expectAgeReading('Bob', 'saved 5 minutes ago')
+
+      // And nothing perceivable moved with them: not one character of the region's text, and not
+      // one row's name
+      expect(perceivableRegionText()).toBe(perceivableBefore)
+      expect(rowNames()).toEqual(namesBefore)
+
+      // And the same measure still answers to the visitor's own actions, so what it proves is that
+      // time is silent and not that the measure is deaf
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(perceivableRegionText()).not.toBe(perceivableBefore)
+    })
+
     it('does not restart the age reading when an already-saved name is saved again', async () => {
       const user = userEvent.setup()
 
