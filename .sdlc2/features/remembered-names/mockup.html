@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remembered names — mockup</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+  }
+  h1.page-title {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+  p.intro {
+    color: #444;
+    max-width: 70ch;
+    margin: 0 0 2rem;
+  }
+  .story {
+    max-width: 640px;
+    margin: 0 auto 2.5rem;
+  }
+  .story h2 {
+    font-size: 1rem;
+    margin: 0 0 0.25rem;
+  }
+  .story .caption {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+  .screen {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+    box-sizing: border-box;
+  }
+  .screen .app-heading {
+    font-size: 0.95rem;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 0.6rem;
+    margin: 0 0 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid #595959;
+    border-radius: 3px;
+    margin-bottom: 0.4rem;
+  }
+  .hint {
+    font-size: 0.85rem;
+    color: #333;
+    margin: 0 0 0.75rem;
+  }
+  button {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #333;
+    border-radius: 3px;
+    background: #eee;
+    cursor: default;
+  }
+  form button {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+  .status-region {
+    margin: 1rem 0 0;
+    padding: 0.5rem 0;
+    min-height: 1.2rem;
+    font-weight: bold;
+  }
+  .alert {
+    color: #7a0000;
+    font-size: 0.9rem;
+    margin: 0 0 0.5rem;
+  }
+  .saved-names-region {
+    margin-top: 1.25rem;
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+  }
+  .saved-names-region h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+    margin: 0 0 0.5rem;
+  }
+  .saved-names-region .empty {
+    margin: 0 0 0.75rem;
+  }
+  .saved-names-region .refusal {
+    margin: 0 0 0.75rem;
+    color: #7a0000;
+    font-weight: bold;
+  }
+  ul.rows {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+  }
+  ul.rows li.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  ul.rows li.row:last-child {
+    border-bottom: none;
+  }
+  .row .row-name {
+    font-weight: bold;
+    min-width: 3.5rem;
+  }
+  .row .row-controls button {
+    margin-left: 0.4rem;
+  }
+  .save-control {
+    margin-top: 0.25rem;
+  }
+  .role-note {
+    font-size: 0.75rem;
+    /* #888 on #fff measures ~3.5:1, below the 4.5:1 WCAG AA text floor. #595959 measures ~7:1. */
+    color: #595959;
+    margin-top: 0.5rem;
+  }
+  /* ux: a visible focus indicator for every state screen that marks a control as focused.
+     Never colour alone — the outline has thickness and offset, not just a hue, so it survives
+     greyscale/forced-colours modes. #1a4fd6 on #fff measures ~5.2:1 (passes the AA non-text
+     3:1 floor for focus indicators with margin to spare). */
+  .is-focused {
+    outline: 3px solid #1a4fd6;
+    outline-offset: 2px;
+  }
+  /* ux: added for the experience-spec section appended below the po's seven story screens. */
+  h2.section-heading {
+    font-size: 1.15rem;
+    margin: 3rem auto 0.25rem;
+    max-width: 900px;
+    border-top: 3px solid #1a1a1a;
+    padding-top: 1.5rem;
+  }
+  .spec-block {
+    max-width: 900px;
+    margin: 0 auto 1.5rem;
+  }
+  .spec-block h3 {
+    font-size: 0.95rem;
+    margin: 1.25rem 0 0.4rem;
+  }
+  .spec-block pre {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    background: #fff;
+  }
+  table.matrix caption {
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-bottom: 0.4rem;
+  }
+  table.matrix th,
+  table.matrix td {
+    border: 1px solid #ccc;
+    padding: 0.4rem 0.5rem;
+    vertical-align: top;
+    text-align: left;
+  }
+  table.matrix th {
+    background: #eee;
+  }
+  table.matrix td.ac {
+    white-space: nowrap;
+    font-weight: bold;
+  }
+  ol.tab-order li,
+  .spec-block ul li {
+    margin: 0.2rem 0;
+  }
+  .spec-block code {
+    background: #eee;
+    padding: 0.05rem 0.3rem;
+    border-radius: 2px;
+    font-size: 0.85em;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Remembered names — happy-path mockup</h1>
+<p class="intro">
+  One screen per user story's happy-path scenario (feature.md, User stories). Lo-fi, self-contained,
+  no build step. Every control named by an acceptance criterion is present on its story's screen;
+  the two row controls — "Greet me again as &lt;name&gt;" and "Remove &lt;name&gt;" — are shown on
+  every screen once their own stories (02, 03) have introduced them, because every screen after that
+  point depicts the same finished Saved names region, only with different data.
+</p>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 01 — Hold more than one saved name (walking skeleton, part 1 of 2)</h2>
+  <p class="caption">
+    Scenario "Saving a second, different name adds a second row without losing the first". Ada was
+    saved first; the visitor has just been greeted "Bob" and activated "Save this name". Both rows
+    are present, oldest first, and the save control still has focus (saving does not move focus).
+    Row controls are not shown here — they belong to stories 02 and 03, not yet introduced.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01-name">Name</label>
+      <input type="text" id="s01-name" value="Bob">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row"><span class="row-name">Ada</span></li>
+        <li class="row"><span class="row-name">Bob</span></li>
+      </ul>
+      <div class="save-control"><button type="button" class="is-focused">Save this name</button></div>
+    </div>
+    <p class="role-note">Two rows, oldest first. Nothing was thrown away.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 02 — Greet again as any saved name (walking skeleton, part 2 of 2)</h2>
+  <p class="caption">
+    Scenario "Greeting again as an earlier saved name works, not only the most recent". Ada, Bob and
+    Cleo are all saved; the visitor was last greeted "Bob" and has just activated
+    "Greet me again as Ada". The status region now reads "Hello, Ada" again.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s02-name">Name</label>
+      <input type="text" id="s02-name" value="" aria-describedby="s02-hint">
+      <p class="hint" id="s02-hint">Saved: Ada, Bob, Cleo</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-name">Ada</span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-name">Bob</span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-name">Cleo</span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">The saved names are unchanged by greeting again; only the greeting moved.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 03 — Remove a saved name</h2>
+  <p class="caption">
+    Scenario "Removing takes out exactly one name and keeps the others in order", immediately after
+    "Remove Bob" was activated. Ada and Cleo remain, in order; focus has moved to the Saved names
+    region because the control that was pressed no longer exists.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s03-name">Name</label>
+      <input type="text" id="s03-name" value="" aria-describedby="s03-hint">
+      <p class="hint" id="s03-hint">Saved: Ada, Cleo</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-name">Ada</span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-name">Cleo</span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+            <button type="button">Remove Cleo</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      "Remove Bob" no longer exists on screen — its row is gone. The greeting still reads "Hello,
+      Bob": removing does not touch the greeting.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 04 — Saving a name already saved is refused</h2>
+  <p class="caption">
+    Scenario "Saving a name already in the list changes nothing and says so". The visitor, currently
+    greeted "Hello, Ada" with Ada already saved, activates "Save this name" again.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s04-name">Name</label>
+      <input type="text" id="s04-name" value="" aria-describedby="s04-hint">
+      <p class="hint" id="s04-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="refusal">Ada is already saved.</p>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-name">Ada</span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button" class="is-focused">Save this name</button></div>
+    </div>
+    <p class="role-note">Exactly one row for Ada — no second entry, no reordering.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 05 — Saving while the list is full is refused, and removing is the way out</h2>
+  <p class="caption">
+    Scenario "Saving a sixth name is refused and says so". Five names are already saved; the visitor
+    has been greeted "Hello, Fay" and activates "Save this name".
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s05-name">Name</label>
+      <input type="text" id="s05-name" value="" aria-describedby="s05-hint">
+      <p class="hint" id="s05-hint">Saved: Ada, Bob, Cleo, Deb, Eve</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Fay</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="refusal">Five names is the limit. Remove one to save another.</p>
+      <ul class="rows">
+        <li class="row"><span class="row-name">Ada</span><span class="row-controls">
+          <button type="button">Greet me again as Ada</button>
+          <button type="button">Remove Ada</button>
+        </span></li>
+        <li class="row"><span class="row-name">Bob</span><span class="row-controls">
+          <button type="button">Greet me again as Bob</button>
+          <button type="button">Remove Bob</button>
+        </span></li>
+        <li class="row"><span class="row-name">Cleo</span><span class="row-controls">
+          <button type="button">Greet me again as Cleo</button>
+          <button type="button">Remove Cleo</button>
+        </span></li>
+        <li class="row"><span class="row-name">Deb</span><span class="row-controls">
+          <button type="button">Greet me again as Deb</button>
+          <button type="button">Remove Deb</button>
+        </span></li>
+        <li class="row"><span class="row-name">Eve</span><span class="row-controls">
+          <button type="button">Greet me again as Eve</button>
+          <button type="button">Remove Eve</button>
+        </span></li>
+      </ul>
+      <div class="save-control"><button type="button" class="is-focused">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Nothing was dropped to make room for Fay, and "Save this name" is still on screen — it teaches
+      the limit rather than vanishing. <strong>Way out:</strong> activate any row's "Remove" control,
+      then activate "Save this name" again.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 06 — Be reminded of every saved name at the Name field</h2>
+  <p class="caption">
+    Scenario "The hint lists every saved name, in the order they were saved". The visitor has saved
+    Ada, Bob and Cleo and is about to type a fourth name.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s06-name">Name</label>
+      <input type="text" id="s06-name" value="" aria-describedby="s06-hint">
+      <p class="hint" id="s06-hint">Saved: Ada, Bob, Cleo</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Cleo</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row"><span class="row-name">Ada</span><span class="row-controls">
+          <button type="button">Greet me again as Ada</button>
+          <button type="button">Remove Ada</button>
+        </span></li>
+        <li class="row"><span class="row-name">Bob</span><span class="row-controls">
+          <button type="button">Greet me again as Bob</button>
+          <button type="button">Remove Bob</button>
+        </span></li>
+        <li class="row"><span class="row-name">Cleo</span><span class="row-controls">
+          <button type="button">Greet me again as Cleo</button>
+          <button type="button">Remove Cleo</button>
+        </span></li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      The Name field's description reads "Saved: Ada, Bob, Cleo" — one phrase, list order,
+      programmatically associated with the field.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>Story 07 — A fresh visit starts with nothing saved</h2>
+  <p class="caption">
+    Scenario "A fresh visit after saving several names starts clean". Same visitor, same browser
+    tab, a new visit: no rows, no save control, no hint.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s07-name">Name</label>
+      <input type="text" id="s07-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="empty">No names saved yet.</p>
+      <!-- no rows, no "Save this name" button: there has been no greeting yet in this fresh visit -->
+    </div>
+    <p class="role-note">Nothing carried over from the previous visit's five saved names.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ux: experience spec, appended in place. The seven screens above are the po's and are        -->
+<!-- unchanged. Everything below extends this same file with the flow, the IA, the full state     -->
+<!-- matrix and the state variants the happy-path screens above don't show on their own.          -->
+<!-- ============================================================ -->
+
+<h2 class="section-heading">Experience spec (ux) — flow, IA and full state coverage</h2>
+
+<div class="spec-block">
+  <h3>1. Experience summary</h3>
+  <p>
+    <strong>Actor:</strong> the visitor, alone on one screen, unchanged from <code>greet-visitor</code>
+    and <code>saved-name</code>. <strong>Job to be done:</strong> "I'm sometimes Ada, sometimes Bob —
+    let me hold onto both and switch without retyping, without one choice costing me the other."
+    <strong>Entry:</strong> a fresh visit (page load), nothing saved. <strong>Exit:</strong> there is
+    none — the visit simply ends (navigating away / reloading), and the next entry is another fresh
+    visit (story 07). <strong>Success metric:</strong> a visitor who has saved more than one name can
+    be greeted as any of them, at any point, without ever retyping a name they already typed once.
+  </p>
+
+  <h3>2. Primary flow — happy path and recovery, in one diagram</h3>
+  <pre>
+                         ┌───────────────────────────────┐
+                         │  FRESH VISIT  (V1 / story 01,07)│
+                         │  Saved names: "No names saved   │
+                         │  yet."  Save control: ABSENT     │
+                         │  Name field: no description      │
+                         └────────────────┬─────────────────┘
+                                          │ type a name, activate "Greet me"
+                                          ▼
+                         ┌───────────────────────────────┐
+                         │  GREETED, NOTHING SAVED (V2)     │◄─────────────┐
+                         │  Status: "Hello, &lt;name&gt;"          │              │
+                         │  Save control: PRESENT           │              │ blank submit
+                         │  Saved names: still empty        │              │ (recovery: retype,
+                         └───┬──────────────────┬────────────┘              │  Greet me again)
+        blank Name field,    │                  │ activate                 │
+        activate "Greet me"  │                  │ "Save this name"          │
+        ─────────────────────┘                  ▼                          │
+                    ▼                  ┌──────────────────────┐            │
+        ┌───────────────────────┐      │ name already in list? │            │
+        │ BLANK-NAME ALERT (V4)  │      └──────┬─────────┬──────┘            │
+        │ "Please enter your     │             no        yes                │
+        │  name." List untouched │             │         │                  │
+        │ (way out: retype, or   │             ▼         ▼                  │
+        │  use any row's         │  ┌────────────────┐ ┌───────────────────┐│
+        │  "Greet me again")     │  │ ROW ADDED (V3,  │ │ "ALREADY SAVED"    ││
+        └────────────┬───────────┘  │ story 01)        │ │ refusal (story 04) ││
+                     │              │ Save keeps focus │ │ list unchanged,    ││
+                     │ "Greet me    └────────┬──────────┘ │ Save keeps focus   ││
+                     │  again as X"           │            └─────────┬──────────┘│
+                     └──────────────────────► │                      │           │
+                                              ▼                      │           │
+                              ┌───────────────────────────────┐      │           │
+                              │ SAVED NAMES: 1–4 ROWS (partial) │◄─────┘           │
+                              │ hint "Saved: A, B, …" at field   │                 │
+                              └───┬─────────────┬──────────────┬─┘                 │
+                    "Remove X"    │  "Greet me   │  "Save this   │                 │
+                    ─────────────┐│   again as X"│   name" (5th) │                 │
+                                 ││   ───────────┘└──────┬────────┘                 │
+                                 ▼▼ (loops back into      │                          │
+                    ┌─────────────────────┐  this same    ▼                         │
+                    │ ROW REMOVED (V5 if   │  box)   ┌───────────────────────────┐  │
+                    │ list now empty →     │         │ SAVED NAMES: 5 ROWS (full) │──┘
+                    │ back to "GREETED,    │         └──────────────┬─────────────┘
+                    │ NOTHING SAVED" but   │                        │ activate "Save this name"
+                    │ with rows if not     │                        ▼
+                    │ the last one)        │         ┌───────────────────────────────┐
+                    │ focus → region        │◄────────┤ OVER-LIMIT REFUSAL (story 05)   │
+                    └───────────────────────┘ "Remove │ "Five names is the limit.       │
+                                               X" is   │  Remove one to save another."   │
+                                               the way │ list unchanged, Save keeps focus │
+                                               out      └───────────────────────────────┘
+  </pre>
+  <p>
+    Every arrow above is a control that exists in the DOM at that moment (rubric UX-FLOW: no dead
+    ends). The two refusal states and the blank-name alert each carry an explicit way out drawn on
+    the diagram; "GREETED, NOTHING SAVED" and "SAVED NAMES: 1–4 ROWS" are loop-back nodes, not
+    terminal ones — every screen in the state matrix below is reachable from the fresh-visit start
+    node by following these arrows, and story 07 is the arrow that always leads back to the start.
+  </p>
+
+  <h3>3. Information architecture &amp; navigation model</h3>
+  <p>
+    <strong>Routes:</strong> one — <code>/</code>. This is deliberate, not an omission: the seed's
+    "Out of scope" rules out persistence, so there is nothing to deep-link into that would still be
+    there on arrival. The one honest route is the app root; "fresh visit" (story 07) <em>is</em> the
+    deep link's landing state. No sub-route is invented to pad this section.
+  </p>
+  <p>
+    <strong>"Where am I / where can I go" without a route per state.</strong> Because every state is
+    a re-render of the same single screen, "where am I" is carried by three landmarks that are
+    <em>always present</em>, in every state including empty — the visitor can find each of them by
+    landmark or heading whether or not it currently has content:
+  </p>
+  <ul>
+    <li><code>&lt;header&gt;&lt;h1&gt;sdlc2 lab&lt;/h1&gt;&lt;/header&gt;</code> — the app itself
+      (grounded in <code>src/AppBanner.tsx</code>, unchanged by this feature).</li>
+    <li>the <code>&lt;form&gt;</code> containing the Name field and "Greet me" — the Arrive/Greet
+      step, always rendered, always the same fixed position.</li>
+    <li><code>role="status"</code> — the Greeting, always rendered from first mount (even empty),
+      per the existing "observed before its text arrives" rule this codebase already relies on.</li>
+    <li><code>role="region" aria-labelledby="…"</code>, headed "Saved names" — the new landmark this
+      feature adds, always rendered from first mount, its heading text never changing across any
+      state in the matrix below.</li>
+  </ul>
+  <p>
+    <strong>Where can I go, from any state:</strong> nowhere else — every control the visitor needs
+    for every job (arrive, greet, save, greet-again, remove) lives inside one of these three
+    always-present landmarks. There is no menu, no second page, no modal: the flat IA <em>is</em> the
+    minimised-decisions principle applied to this feature. A screen-reader user who has never seen
+    this screen before can jump landmark-to-landmark (header → form → status → Saved names) and know
+    exactly what each one is for, in every state, because the landmark and its heading never move
+    and never disappear — only their contents change.
+  </p>
+
+  <h3>4. Wireframe block (ASCII), primary action marked</h3>
+  <pre>
+┌───────────────────────────────────────────────┐
+│ sdlc2 lab                                  (h1)│
+├───────────────────────────────────────────────┤
+│ Name:  [__________________________]            │
+│        (Saved: Ada, Bob  — hint, if any saved)  │
+│        (Please enter your name — alert, if any) │
+│        [ Greet me ]  ← PRIMARY on this screen   │
+├───────────────────────────────────────────────┤
+│ Hello, Ada                          (status)    │
+├───────────────────────────────────────────────┤
+│ Saved names                              (h2)   │
+│ (Ada is already saved. / Five names is the      │
+│  limit… — refusal, if any, announced here)      │
+│  Ada    [Greet me again as Ada] [Remove Ada]     │
+│  Bob    [Greet me again as Bob] [Remove Bob]     │
+│                                                   │
+│  [ Save this name ]  ← PRIMARY once greeted;     │
+│                         absent before that (P6)  │
+└───────────────────────────────────────────────┘
+  </pre>
+  <p>
+    Exactly one primary action is on screen at a time: "Greet me" before there is anything to save,
+    "Save this name" after. Row controls ("Greet me again as…", "Remove…") are always secondary —
+    they act on something already saved, never on the visitor's current draft.
+  </p>
+</div>
+
+<h2 class="section-heading">State matrix — every screen, every state, every way out</h2>
+<div class="spec-block">
+  <table class="matrix">
+    <caption>Rows are ordered start-to-finish along the primary flow. "AC" cites the story whose
+      acceptance criteria this state proves.</caption>
+    <thead>
+      <tr><th>Region</th><th>State</th><th>Trigger</th><th>What's on screen / announced</th><th>Way out (recovery)</th><th>AC</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Saved names</td><td>Empty — fresh visit</td><td>page load / story 07 reset</td><td>"No names saved yet."; no Save button; Name field has no description</td><td>type a name, activate "Greet me"</td><td class="ac">01, 07</td></tr>
+      <tr><td>Saved names</td><td>Empty — greeted, never saved</td><td>first greeting on a fresh visit</td><td>"No names saved yet." remains; Save button now present</td><td>activate "Save this name"</td><td class="ac">01</td></tr>
+      <tr><td>Saved names</td><td>Partial (1–4 rows)</td><td>at least one successful save, below the limit</td><td>rows in save order; hint at Name field; Save button present</td><td>save (up to 5), greet-again any row, remove any row</td><td class="ac">01, 02, 03, 06</td></tr>
+      <tr><td>Saved names</td><td>Success — row added</td><td>"Save this name" activated, name not yet in list</td><td>new row appended after existing rows; region announces new contents; Save button keeps focus</td><td>continue the flow — no recovery needed</td><td class="ac">01</td></tr>
+      <tr><td>Saved names</td><td>Refusal — already saved</td><td>"Save this name" activated, name already in list</td><td>"&lt;name&gt; is already saved." announced; list and order unchanged; Save button remains, keeps focus</td><td>save a different name, or use greet-again / remove instead</td><td class="ac">04</td></tr>
+      <tr><td>Saved names</td><td>Refusal — over-limit</td><td>"Save this name" activated, list already holds 5</td><td>"Five names is the limit. Remove one to save another." announced; all 5 rows intact; Save button remains visible</td><td>activate any row's "Remove", then "Save this name" again</td><td class="ac">05</td></tr>
+      <tr><td>Saved names</td><td>Row removed — list still non-empty</td><td>a row's "Remove &lt;name&gt;" activated, other rows remain</td><td>that row gone, others keep order; focus moves to the region; region announces new contents</td><td>continue saving / greeting-again / removing</td><td class="ac">03</td></tr>
+      <tr><td>Saved names</td><td>Row removed — list now empty</td><td>"Remove &lt;name&gt;" activated on the only remaining row</td><td>reverts to "No names saved yet."; Save button remains (a greeting already happened); focus on the region</td><td>greet again and save to repopulate</td><td class="ac">03</td></tr>
+      <tr><td>Saved names</td><td>Loading — <em>does not exist, by design</em></td><td>n/a</td><td>every transition above is a synchronous in-memory state update (seed: "Everything is in memory"); there is no network call and nothing to await</td><td>n/a — noted explicitly so it is not the state someone forgot to design</td><td class="ac">seed scope</td></tr>
+      <tr><td>Status (greeting)</td><td>Empty — before first greeting</td><td>fresh visit</td><td>role="status" present, no text</td><td>type a name, "Greet me"</td><td class="ac">carried, unmodified</td></tr>
+      <tr><td>Status (greeting)</td><td>Greeted / re-greeted</td><td>submit, or any "Greet me again as &lt;name&gt;"</td><td>"Hello, &lt;name&gt;"; content node is replaced (keyed), so it re-announces even when the text is identical to what was already there</td><td>n/a — already the success state</td><td class="ac">02 (re-announce scenario)</td></tr>
+      <tr><td>Name field description</td><td>None</td><td>fresh visit, or every saved name removed and no alert standing</td><td><code>aria-describedby</code> absent entirely — never an empty attribute</td><td>save a name, or clear the alert</td><td class="ac">06, 07</td></tr>
+      <tr><td>Name field description</td><td>Hint only</td><td>≥1 saved name, no alert standing</td><td>"Saved: Ada, Bob, Cleo" visible and associated</td><td>n/a — informational</td><td class="ac">06</td></tr>
+      <tr><td>Name field description</td><td>Alert only (error)</td><td>blank submit, nothing saved yet</td><td>"Please enter your name." both visible and the field's description</td><td>type a name and resubmit</td><td class="ac">01 (blank never touches saved names)</td></tr>
+      <tr><td>Name field description</td><td>Alert + hint combined (error over partial)</td><td>blank submit while ≥1 name is saved</td><td>both present; alert's id ordered first in <code>aria-describedby</code>, hint second</td><td>type a name and resubmit, or use a row's "Greet me again" instead</td><td class="ac">06 (order scenario)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2 class="section-heading">Additional wireframes — states no story's own happy-path screen shows</h2>
+<p class="intro">
+  The seven screens above each depict one story's own headline scenario. The five below fill the
+  remaining state-matrix rows that no story screen shows on its own — the ones a checker reading
+  only the happy paths above would find undesigned.
+</p>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>V1 — Fresh visit, before any greeting <span class="caption">(state matrix: Saved names — Empty / fresh visit)</span></h2>
+  <p class="caption">
+    Story 01, scenario "The Saved names region is present and empty before any greeting", and story
+    07's landing state after a reset. No Save button exists yet (P6 — nothing to save until there
+    has been a greeting); the Name field carries no description at all (story 06, "hint is absent
+    while nothing is saved").
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v1-name">Name</label>
+      <input type="text" id="v1-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite"></div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="empty">No names saved yet.</p>
+      <!-- no rows, no "Save this name" button, no refusal text: this is the true starting state -->
+    </div>
+    <p class="role-note">Way out: type a name and activate "Greet me" — the only control on screen.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>V2 — Greeted, nothing saved yet <span class="caption">(state matrix: Saved names — Empty / greeted, never saved)</span></h2>
+  <p class="caption">
+    Story 01, scenario "The save control appears only once there has been a greeting". The visitor
+    has just been greeted "Hello, Ada"; "Save this name" now exists inside the Saved names region,
+    but the list itself is still empty — the two facts are independent (P6 vs. list contents).
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v2-name">Name</label>
+      <input type="text" id="v2-name" value="Ada">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="empty">No names saved yet.</p>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">Way out: activate "Save this name" to move to the partial/success state.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>V3 — First save succeeds <span class="caption">(state matrix: Saved names — Success / row added, first row)</span></h2>
+  <p class="caption">
+    Story 01, scenario "Saving the first name adds one row" — distinct from the story 01 screen
+    above, which already shows the <em>second</em> save. Here exactly one row exists, "No names
+    saved yet." is gone, and the Save button — which survives its own activation — still holds
+    focus (story 01, "Saving does not move focus").
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v3-name">Name</label>
+      <input type="text" id="v3-name" value="Ada" aria-describedby="v3-hint">
+      <p class="hint" id="v3-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row"><span class="row-name">Ada</span><span class="row-controls">
+          <button type="button">Greet me again as Ada</button>
+          <button type="button">Remove Ada</button>
+        </span></li>
+      </ul>
+      <div class="save-control"><button type="button" class="is-focused">Save this name</button></div>
+    </div>
+    <p class="role-note">Focus ring on "Save this name": the control that was pressed keeps focus.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>V4 — Blank-name alert with saved names present <span class="caption">(state matrix: Name field description — Alert + hint combined; Saved names untouched)</span></h2>
+  <p class="caption">
+    Story 01, scenario "A blank submission never touches the saved names", combined with story 06's
+    last scenario, "the alert is described first". Ada and Bob are already saved; the visitor
+    cleared the Name field and submitted anyway. The alert is announced; the hint is still there
+    underneath it, in second position in the field's description; the saved names are unaffected.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v4-name">Name</label>
+      <input type="text" id="v4-name" value="" aria-describedby="v4-alert v4-hint">
+      <p class="alert" id="v4-alert" role="alert">Please enter your name.</p>
+      <p class="hint" id="v4-hint">Saved: Ada, Bob</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <ul class="rows">
+        <li class="row"><span class="row-name">Ada</span><span class="row-controls">
+          <button type="button">Greet me again as Ada</button>
+          <button type="button">Remove Ada</button>
+        </span></li>
+        <li class="row"><span class="row-name">Bob</span><span class="row-controls">
+          <button type="button">Greet me again as Bob</button>
+          <button type="button">Remove Bob</button>
+        </span></li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Way out: retype a name and resubmit, or skip the field entirely and activate any row's
+      "Greet me again" — which also clears this alert (story 02).
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2>V5 — Removing the only saved name returns to empty <span class="caption">(state matrix: Saved names — Row removed / list now empty)</span></h2>
+  <p class="caption">
+    Story 03, scenario "Removing the only saved name returns the region to its empty state". Ada
+    was the sole saved name; "Remove Ada" was just activated. The region is back to "No names
+    saved yet." and — because the control that was pressed no longer exists — focus has moved to
+    the region itself, which announces its new (empty) contents. The Save button remains, because a
+    greeting has already happened this visit; this is not the same screen as V1.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="v5-name">Name</label>
+      <input type="text" id="v5-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <p class="empty">No names saved yet.</p>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Way out: greet again (or greet as a new name) and activate "Save this name" to repopulate the
+      list. Tabbing onward from here leaves the page — this region is the last landmark on screen,
+      exactly as it is in every other state, so nothing is stranded, just the natural end of tab order.
+    </p>
+  </div>
+</div>
+
+<h2 class="section-heading">A11y &amp; responsive notes</h2>
+<div class="spec-block">
+  <h3>Keyboard path (tab order), fixed regardless of state</h3>
+  <ol class="tab-order">
+    <li>Name field</li>
+    <li>"Greet me" (submit)</li>
+    <li>each row, top to bottom, in save order — never resorted (Decisions: "a row never moves"):
+      "Greet me again as &lt;name&gt;", then "Remove &lt;name&gt;"</li>
+    <li>"Save this name" (only once there has been a greeting) — this is the <em>last</em> stop, so
+      newly-saved rows always appear <em>above</em> the tab stop that created them, not after it</li>
+  </ol>
+  <h3>Focus management, one rule with no special case</h3>
+  <ul>
+    <li><strong>Save:</strong> never moves focus. The button survives its own activation (React
+      reuses the same DOM node; see V3's focus ring).</li>
+    <li><strong>Greet again:</strong> never moves focus, for the same reason — it is an ordinary
+      greeting, and the row's controls survive.</li>
+    <li><strong>Remove:</strong> always moves focus to the Saved names region (<code>tabindex="-1"</code>,
+      programmatically focused), because the control that was pressed no longer exists to hold
+      focus. One rule, applied whether or not the removed row was the last one (V5).</li>
+  </ul>
+  <h3>Labelling</h3>
+  <ul>
+    <li>Name field: a real <code>&lt;label for&gt;</code>, unchanged from <code>greet-visitor</code>.</li>
+    <li>Every row control's accessible name carries its own row's name — "Greet me again as Ada",
+      "Remove Ada" — so a screen-reader user tabbing through five rows never hears five identical
+      button names (Decisions: "row controls carry their name").</li>
+    <li>The Saved names region has both a visible <code>&lt;h2&gt;</code> and a landmark name, so the
+      text a sighted visitor reads and the name assistive tech announces cannot drift apart.</li>
+  </ul>
+  <h3>Heading order (grounded in the shipped code, not invented here)</h3>
+  <p>
+    <code>src/AppBanner.tsx</code> already renders <code>&lt;header&gt;&lt;h1&gt;sdlc2 lab&lt;/h1&gt;&lt;/header&gt;</code>;
+    <code>src/GreetingScreen.tsx</code> already renders the Saved-name heading as <code>&lt;h2&gt;</code>
+    inside a labelled <code>&lt;section&gt;</code>. The real order is <code>h1 → h2</code>, one level,
+    no skip. The mockup screens above use a decorative <code>&lt;p class="app-heading"&gt;</code>
+    stand-in for the app banner — a convention the po's seven screens already established, kept
+    unchanged here rather than introducing a second real <code>&lt;h1&gt;</code> into every one of
+    twelve screens sharing this one HTML document (which would itself violate one-<code>h1</code>-
+    per-document, a mistake specific to a multi-screen mockup file, not to the shipped app). The
+    developer implements the real, single <code>h1 → h2</code> order shown above; nothing here
+    contradicts it.
+  </p>
+  <h3>Contrast &amp; colour</h3>
+  <ul>
+    <li>Refusal / alert text <code>#7a0000</code> on white ≈ 7.4:1 — passes AA at any size.</li>
+    <li>Hint / role-note text <code>#333</code> / <code>#595959</code> on white ≈ 12:1 / 7:1.</li>
+    <li>Focus outline <code>#1a4fd6</code>, 3px solid with 2px offset ≈ 5.2:1 against white.</li>
+    <li>Never colour alone: every refusal, alert and hint carries its meaning in text content and in
+      an ARIA live region; row presence/absence is the only signal for "saved or not", never a
+      colour swatch.</li>
+  </ul>
+  <h3>Reduced motion</h3>
+  <p>No animation or transition exists anywhere in this feature (rows appear/disappear immediately;
+    focus moves without any scripted scroll); <code>prefers-reduced-motion</code> has nothing to
+    turn off.</p>
+  <h3>Responsive</h3>
+  <p>Single column, <code>max-width: 640px</code>, already reflows to any viewport ≥ ~320px without
+    horizontal scroll; row controls wrap via the existing flex <code>gap</code>. Recommendation to
+    the developer: keep each button's hit target ≥ 44×44px on touch viewports, since a row can carry
+    two adjacent controls ("Greet me again as Ada" / "Remove Ada") that must not be easy to mis-tap
+    for each other.</p>
+</div>
+
+<h2 class="section-heading">Handoff acceptance criterion</h2>
+<div class="spec-block">
+  <p>
+    A first-time visitor, given no instructions beyond the on-screen copy, can: type a name and get
+    greeted; discover "Save this name" only once greeted, activate it, and watch a labelled row
+    appear while focus stays put; greet a second, different name and save it, and see <em>both</em>
+    rows survive in save order (the walking skeleton, stories 01+02); use "Greet me again as
+    &lt;name&gt;" on the first row to switch back without retyping, and watch the greeting
+    re-announce; use "Remove &lt;name&gt;" on a row and land, by focus, in the Saved names region,
+    which speaks its new contents; attempt to save a name already in the list and read, in that same
+    region, that it is already saved with the list unchanged; fill the list to five, attempt a
+    sixth, read the refusal that names its own way out, remove one, and then save the sixth
+    successfully; and, starting a fresh visit, find none of it left over. Every step above is proven
+    by the copy and the control names alone — no separate help text and no screen this document does
+    not already show.
+  </p>
+</div>
+
+</body>
+</html>
