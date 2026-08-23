@@ -912,4 +912,210 @@ describe('Greeting screen', () => {
     // region that vanished on the remount fails loudly here instead of passing as "no text".
     expect(screen.getByRole('status')).toHaveTextContent('')
   })
+
+  // ---------------------------------------------------------------------------------------
+  // remembered-names issue 04 — Saving a name already saved is refused. One acceptance test per
+  // Gherkin scenario, driven through the declared frontend seam (RTL + user-event via
+  // Vitest/jsdom), from the same entry point as every scenario above.
+  //
+  // A guard slice by design (design.md §5.1, ADR-0007): the whole `save` command — the append and
+  // both refusals, with the words the visitor reads — arrived in slice 01, because a live save
+  // with the duplicate branch missing would let a visitor keep two identical rows carrying two
+  // identical controls. So these five are expected to pass on their first run, and nothing here is
+  // loosened to manufacture a red bar.
+  //
+  // They are not tautologies. Each fails a named wrong implementation that a reader of slice 01
+  // could plausibly have written: an append that never checks membership; the move-to-front
+  // variant the seed explicitly rejects; a refusal rendered at the Name field instead of in the
+  // region; a save that refuses whenever the list is non-empty; and hiding the save control once
+  // it has refused. A red bar here means one of those, and the fix is that implementation —
+  // never a weakened scenario.
+  //
+  // What no scenario here asserts, deliberately: whether the refusal is actually spoken, and
+  // whether it is spoken *again* when the visitor presses Save a second time. jsdom implements no
+  // live-region announcement, so the testable half — aria-live="polite" and the refusal's words
+  // inside the region — is what these pin, and audibility is a human check (VH-04(b)).
+  // ---------------------------------------------------------------------------------------
+
+  // Issue 04's sentence, copied from its Gherkin rather than imported from src/visit.ts on
+  // purpose — a scenario that imported refusalText would pass whatever that function happened to
+  // say, including a sentence naming the wrong name.
+  const ADA_ALREADY_SAVED_TEXT = 'Ada is already saved.'
+
+  // Given the visitor has saved "Ada" only
+  // And the visitor is currently greeted "Hello, Ada"
+  //
+  // Three of the five scenarios open on exactly this state, so it is one named step rather than
+  // three copies, and it asserts both halves really arrived: one row, and that row is still the
+  // greeting. Without the second assertion a scenario could pass having refused a save the
+  // visitor was never in a position to make.
+  const saveAdaAndStillBeGreetedAsAda = async (user: UserEvent) => {
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  }
+
+  it('refuses a save of a name already in the list, and says so', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" only
+    // And the visitor is currently greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await saveAdaAndStillBeGreetedAsAda(user)
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region reads "Ada is already saved."
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+      ADA_ALREADY_SAVED_TEXT,
+    )
+    // And the Saved names region contains exactly one row for "Ada" — one row in the whole
+    // region, and it is Ada's, which is what "exactly one row for Ada" means when Ada is the only
+    // name saved. This is the assertion an append that never checks membership fails: it would
+    // leave two rows a visitor cannot tell apart.
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Ada')
+  })
+
+  // The move-to-front variant the seed explicitly rejects: a refusal that "helpfully" promotes the
+  // re-saved name would rearrange the list under a visitor reaching for a control, and under a
+  // screen-reader user's count of it. Ada is re-saved from the *front* of three, so any
+  // reordering shows up as Ada leaving index 0.
+  it('does not reorder the list when it refuses a name already saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    await beGreeted(user, 'Bob')
+    await saveTheGreetedName(user, 'Bob')
+    await beGreeted(user, 'Cleo')
+    await saveTheGreetedName(user, 'Cleo')
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(3)
+    // And the visitor is currently greeted "Hello, Ada" — re-greeted from the Name field, because
+    // the per-row "Greet me again as Ada" control is issue 02's and does not exist here (VH-05).
+    await beGreeted(user, 'Ada')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region contains rows for "Ada", "Bob" and "Cleo", in that order —
+    // asserted by the rows' indices, and by substring, never by an anchored regex: a row's text
+    // grows to include its own controls' names when issues 02 and 03 land (design.md §5.4).
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Bob')
+    expect(rows[2]).toHaveTextContent('Cleo')
+  })
+
+  // Not a repeat of the scenario above, and not a scenario of its own: it is what makes that one's
+  // stated job — killing the move-to-front variant (design.md §5.1) — actually true. The Gherkin
+  // re-saves "Ada", which is already first, so an implementation that promotes a re-saved name to
+  // the front passes it unchanged; only a name with rows on *both* sides of it can see the
+  // difference. Re-saving "Bob" from the middle fails promotion to the front and demotion to the
+  // end alike, which is the whole of "a saved name never moves once it is in the list" (R18).
+  it('leaves a re-saved name where it is, even in the middle of the list', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    await beGreeted(user, 'Bob')
+    await saveTheGreetedName(user, 'Bob')
+    await beGreeted(user, 'Cleo')
+    await saveTheGreetedName(user, 'Cleo')
+    // And the visitor is currently greeted "Hello, Bob"
+    await beGreeted(user, 'Bob')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region still contains rows for "Ada", "Bob" and "Cleo", in that order
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Bob')
+    expect(rows[2]).toHaveTextContent('Cleo')
+    // And it says so, in the name the visitor actually re-saved
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+      'Bob is already saved.',
+    )
+  })
+
+  it('announces the already-saved refusal through the same polite live region', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" only
+    // And the visitor is currently greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await saveAdaAndStillBeGreetedAsAda(user)
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region still has the attribute aria-live="polite"
+    const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    // …and the refusal really is what that region carries. Without this the scenario would pass
+    // against a refusal rendered at the Name field, which is the implementation it exists to fail
+    // (design.md §5.1): the message is about the list, not about what was typed, so the field is
+    // still described by the saved-name hint and by nothing else.
+    expect(within(region).getByText(ADA_ALREADY_SAVED_TEXT)).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Ada')
+  })
+
+  // The scenario that fails a save which refuses whenever the list is non-empty: "already saved"
+  // is about this name, not about the list having names in it.
+  it('still saves a name not yet saved while another name is already saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" only
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(1)
+    // And the visitor has been greeted "Hello, Bob"
+    await beGreeted(user, 'Bob')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region contains a row for "Ada" and a row for "Bob"
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Bob')
+    // …and nothing was refused: a row can be present while a refusal sits above it, so the row
+    // count alone would not notice a save that both appended and complained.
+    expect(screen.queryByText('Bob is already saved.')).toBeNull()
+  })
+
+  // Hiding the save control after it refuses would follow the existing rule that a control with
+  // nothing to do does not exist — but the control would vanish under the visitor's hand with no
+  // explanation, and the refusal is what teaches; a missing button teaches nothing.
+  it('keeps the save control on screen after an already-saved refusal', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" only
+    // And the visitor is currently greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await saveAdaAndStillBeGreetedAsAda(user)
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then a button named "Save this name" is still present — inside the region, where issue 01
+    // put it, and enabled: a disabled button is present without being a way to act, which is the
+    // same silence by another route.
+    const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+    const saveControl = within(region).getByRole('button', { name: SAVE_CONTROL })
+    expect(saveControl).toBeVisible()
+    expect(saveControl).toBeEnabled()
+  })
 })
