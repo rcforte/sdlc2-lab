@@ -994,4 +994,138 @@ describe('Greeting screen', () => {
     expect(described[0]).toBe(screen.getByRole('alert'))
     expect(described[1]).toBeVisible()
   })
+
+  // ---------------------------------------------------------------------------------------
+  // saved-name issue 04 — Replace the saved name. One acceptance test per Gherkin scenario,
+  // driven through the declared frontend seam (RTL + user-event via Vitest/jsdom).
+  //
+  // A guard slice by design (design.md §5.1, ADR-0007): the saved name is a scalar slot and
+  // `save` writes it whole, so replacing is what saving already does — these three scenarios
+  // pass on their first run and no production code is expected. That is the intended outcome,
+  // not a missing test: manufacturing red would mean prescribing a worse `save` (one that
+  // writes only into an empty slot), leaving a visitor pressing "Save this name" and watching
+  // nothing happen for the length of a slice.
+  //
+  // They are not tautologies either. Each was run against the specific wrong implementation it
+  // exists to catch, and observed to fail:
+  //   · "replaces the previous saved name"  — red against `save` guarded by `savedName === null`
+  //     (region kept reading "Saved: Ada" and "Saved: Ada" was still shown).
+  //   · "replaces without asking"           — red against a third button (an "Undo") added to
+  //     the region.
+  //   · "keeps focus … same name again"     — red against the controls moved inside the child
+  //     keyed by saveCount, which destroys the button the visitor just pressed.
+  //
+  // What no test here can see: whether the region re-announces an identical replace. The DOM is
+  // byte-identical either way (design.md §5.4), so the domain half is pinned in src/visit.test.ts
+  // (INV-11: two saves of the same name are two saves) and the audible half is a human check —
+  // VERIFY-WITH-HUMAN.md VH-02(c). This slice asserts only the testable half, exactly as the
+  // issue says it should.
+  // ---------------------------------------------------------------------------------------
+
+  it('replaces the previous saved name when the visitor saves again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has since been greeted "Hello, Grace"
+    await beGreeted(user, 'Grace')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved name region reads "Saved: Grace"
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent(
+      'Saved: Grace',
+    )
+    // And "Saved: Ada" is no longer shown — asserted page-wide, which is both stronger and
+    // unambiguous: an implementation that kept the old name anywhere on the screen (a second
+    // slot, a list, a "previously saved" line) fails here. The visit holds one name, and the
+    // one it holds is the newest.
+    expect(screen.queryByText('Saved: Ada')).toBeNull()
+  })
+
+  it('replaces without asking, and offers no way back', async () => {
+    const user = userEvent.setup()
+
+    // The closed list of buttons the Saved name region may hold (feature.md, Agreed copy).
+    // "Greet me again" ships with issue 02, which is not on this slice's branch — this slice was
+    // cut from 01 alone (VERIFY-WITH-HUMAN.md VH-03). So the step is encoded as the closed list
+    // it is: no button inside the region may be named anything else, and neither permitted
+    // control may appear outside the region. That is precisely what the step exists to catch —
+    // "it fails the moment anyone adds a confirmation dialog, an 'undo' control, or a third
+    // button inside the region" (design.md §5.1) — and it reads literally once issue 02 lands,
+    // whose own acceptance criterion ("the greet-again control appears once a name is saved")
+    // owns that control's presence. Declared here, in the one scenario that needs it, rather
+    // than beside the file's other constants, so issue 02's slice can name it there without a
+    // collision.
+    const permittedRegionButtons = [SAVE_CONTROL, 'Greet me again']
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the visitor has since been greeted "Hello, Grace"
+    await beGreeted(user, 'Grace')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved name region reads "Saved: Grace"
+    const region = screen.getByRole('region', { name: SAVED_NAME_REGION })
+    expect(region).toHaveTextContent('Saved: Grace')
+
+    // And no dialog, confirmation prompt, or alert is present. All three roles, because a
+    // confirmation could plausibly arrive as any of them, and because the save must not have
+    // produced the blank-name alert either — replacing says nothing at all.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // And the only buttons inside the Saved name region are "Save this name" and "Greet me
+    // again" — every button in the region carries one of those two accessible names…
+    const buttonsInRegion = within(region).getAllByRole('button')
+    const permittedButtonsInRegion = permittedRegionButtons.flatMap((name) =>
+      within(region).queryAllByRole('button', { name }),
+    )
+    const unexpectedButtons = buttonsInRegion.filter(
+      (button) => !permittedButtonsInRegion.includes(button),
+    )
+    // …mapped to their text so a failure names the offending control rather than dumping a node.
+    expect(unexpectedButtons.map((button) => button.textContent)).toEqual([])
+    // …the save control really is one of them, so the emptiness above is not the emptiness of a
+    // region that lost its controls…
+    expect(within(region).getByRole('button', { name: SAVE_CONTROL })).toBeVisible()
+    // …and neither permitted control has escaped the region: both sit inside it, outside the
+    // <form> (feature.md, Agreed scope), so an "undo" offered as a second save control elsewhere
+    // on the screen fails here too.
+    for (const name of permittedRegionButtons) {
+      for (const button of screen.queryAllByRole('button', { name })) {
+        expect(region).toContainElement(button)
+      }
+    }
+  })
+
+  it('still replaces, and keeps focus, when the same name is saved again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // And the greeting still reads "Hello, Ada" — nothing has been greeted since the save, so
+    // this save's source and its existing value are the same name.
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor activates "Save this name" again
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved name region still reads "Saved: Ada"
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent('Saved: Ada')
+    // And the "Save this name" button still has focus — the control survives its own activation
+    // a second time exactly as it did the first, which is what makes a polite live region the
+    // right answer here instead of moving focus.
+    expect(screen.getByRole('button', { name: SAVE_CONTROL })).toHaveFocus()
+  })
 })
