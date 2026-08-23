@@ -26,6 +26,24 @@ export type SaveRefusal =
   | { readonly kind: 'already-saved'; readonly name: string }
   | { readonly kind: 'full' }
 
+/**
+ * INV-27, INV-28. One saved name and the moment it joined the list, in epoch milliseconds.
+ *
+ * Its identity is `name` alone (ADR-0035): the duplicate check, removal, the greet-again guard
+ * and the row's key all compare names and ignore moments. That is a value object whose equality
+ * is defined on one of its two fields, which is a trap worth naming — the mitigation is that the
+ * comparison happens in exactly one place, `holds` below.
+ *
+ * `savedAt` is a plain number and deliberately not a branded type: it is constructed at exactly
+ * one call site and read by pure functions in this module, so a brand would buy a compile error
+ * nobody can currently provoke.
+ */
+export type SavedName = { readonly name: string; readonly savedAt: number }
+
+/** INV-32. A minute and an hour, in milliseconds, beside the one rule that reads them. */
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+
 /** In-memory state of one visit. Replaced wholesale; never mutated. */
 export type Visit = {
   /** Trimmed and non-blank when present; null until the first successful submission. */
@@ -37,12 +55,12 @@ export type Visit = {
   /** INV-8b. Blank submissions rejected this visit. Monotonic; same role as greetingCount. */
   readonly blankCount: number
   /**
-   * INV-17. The names this visit is holding onto, oldest first; [] until the first save. No
-   * duplicates, at most SAVED_NAMES_LIMIT, and a name never moves once it is in the list. Each
-   * entry is trimmed and non-blank when present — it is a value greetedName already held, so it
-   * inherits INV-2 rather than re-deriving it.
+   * INV-17, INV-27. The names this visit is holding onto, oldest first, each with the moment it
+   * was saved; [] until the first save. No duplicates, at most SAVED_NAMES_LIMIT, and a name
+   * never moves once it is in the list. Each entry's name is trimmed and non-blank when present
+   * — it is a value greetedName already held, so it inherits INV-2 rather than re-deriving it.
    */
-  readonly savedNames: readonly string[]
+  readonly savedNames: readonly SavedName[]
   /** INV-20. Why the most recent save attempt added nothing; null when it added a name. */
   readonly lastSaveRefusal: SaveRefusal | null
   /** INV-21. Writes to the list this visit. Monotonic; identity, not a quantity to display. */
@@ -111,7 +129,7 @@ export function submit(visit: Visit, rawName: string): Visit {
  */
 function withSavedNames(
   visit: Visit,
-  savedNames: readonly string[],
+  savedNames: readonly SavedName[],
   refusal: SaveRefusal | null,
 ): Visit {
   return {
@@ -123,8 +141,18 @@ function withSavedNames(
 }
 
 /**
- * INV-17, INV-18, INV-20, INV-21. Appends the name the visitor is currently greeted as, or
- * refuses and says why.
+ * INV-28. The one place a name is compared to a saved name — so `===` on the already-trimmed
+ * text exists in a single expression instead of once inside each of save, greetAgain and remove,
+ * and so "identity is the name alone" cannot come to mean three different things now that entries
+ * carry a second field (ADR-0035).
+ */
+function holds(savedNames: readonly SavedName[], name: string): boolean {
+  return savedNames.some((saved) => saved.name === name)
+}
+
+/**
+ * INV-17, INV-18, INV-20, INV-21, INV-27. Appends the name the visitor is currently greeted as
+ * together with the moment it joined the list, or refuses and says why.
  *
  * It takes no name argument, and that absence is the guarantee: the greeting is the only possible
  * source, so no caller can save a name the visitor was never greeted as (ADR-0020). Total — with
@@ -135,17 +163,28 @@ function withSavedNames(
  * point is that it holds five (ADR-0007). Already-saved is checked first: when the list is full
  * *and* the name is in it, telling the visitor to remove one would send them to make room for a
  * name that is already there (ADR-0027; human check VH-03).
+ *
+ * The moment is handed in rather than read here, because this module never reads a clock
+ * (INV-33): the reading is taken at the impure edge, which is what keeps every rule in this file
+ * a deterministic function of its arguments (ADR-0036).
+ *
+ * INV-27, and it is structural rather than remembered: this is the only function that ever
+ * *constructs* a SavedName, and it does so only in the appending branch. The already-saved branch
+ * hands the existing list straight back by reference, so re-saving a name cannot move the moment
+ * it already carries — the product's keep-not-refresh decision holds because no code exists that
+ * could refresh it, not because anyone remembers a rule. remove filters, and a filter cannot
+ * rewrite a field. There is no setter.
  */
-export function save(visit: Visit): Visit {
+export function save(visit: Visit, savedAt: number): Visit {
   const name = visit.greetedName
   if (name === null) return visit
-  if (visit.savedNames.includes(name)) {
+  if (holds(visit.savedNames, name)) {
     return withSavedNames(visit, visit.savedNames, { kind: 'already-saved', name })
   }
   if (visit.savedNames.length >= SAVED_NAMES_LIMIT) {
     return withSavedNames(visit, visit.savedNames, { kind: 'full' })
   }
-  return withSavedNames(visit, [...visit.savedNames, name], null)
+  return withSavedNames(visit, [...visit.savedNames, { name, savedAt }], null)
 }
 
 /**
@@ -164,7 +203,7 @@ export function save(visit: Visit): Visit {
  * standing alert" needs no rule of its own. Total: an unsaved name returns the visit unchanged.
  */
 export function greetAgain(visit: Visit, name: string): Visit {
-  if (!visit.savedNames.includes(name)) return visit
+  if (!holds(visit.savedNames, name)) return visit
   return submit(visit, name)
 }
 
@@ -183,12 +222,50 @@ export function greetAgain(visit: Visit, name: string): Visit {
  * change who the visitor is greeted as" needs no rule of its own.
  */
 export function remove(visit: Visit, name: string): Visit {
-  if (!visit.savedNames.includes(name)) return visit
+  if (!holds(visit.savedNames, name)) return visit
   return withSavedNames(
     visit,
-    visit.savedNames.filter((saved) => saved !== name),
+    visit.savedNames.filter((saved) => saved.name !== name),
     null,
   )
+}
+
+/** INV-31. A day, in milliseconds, beside the one rule that reads it — never a number elsewhere. */
+const DAY_MS = 24 * HOUR_MS
+
+/**
+ * INV-31. Drops every saved name that is more than a day old, measured from its own saved-at
+ * moment. A name leaves on its own, with the visitor doing nothing, so that the list stays a
+ * record of names they still care about rather than everything they have ever typed.
+ *
+ * *Older than* a day, not *at least* a day: a name exactly DAY_MS old stays, which is the cutoff
+ * the strict comparison spells. Nobody can see the difference on a screen — it re-reads the clock
+ * once every fifteen seconds, so a row leaves at the first reading past its own mark and a reading
+ * landing exactly on that millisecond is a coincidence no visitor can arrange. It is written down
+ * because the words are "older than a day" and a rule should say what its words say.
+ *
+ * The cutoff is measured from the moment, so a calendar boundary is not a moment: a name saved at
+ * 23:50 is twenty minutes old at ten past midnight, exactly as it would be at ten past two.
+ *
+ * A fall-off is *a write to the list, not a tick* (seed, Agreed scope), and the way that is made
+ * true rather than remembered is that it leaves through withSavedNames like every other write —
+ * so it bumps the revision, the region has new contents to announce, and the freed slot is a real
+ * slot the next save can have. It is the ordinary list write's other half that decides the
+ * refusal: a standing "five names is the limit" described a list that no longer exists, and so it
+ * goes with the row (INV-20; the human check is VH-05).
+ *
+ * When nothing is old enough the visit is returned by identity, and that is what keeps the passage
+ * of time silent: React bails out of a state it is handed back unchanged, so the region's nodes
+ * survive a tick untouched and there is nothing for a screen reader to notice. A new object every
+ * fifteen seconds would announce the same list forever (R31).
+ *
+ * Like save, it is handed the instant rather than reading one: this module never reads a clock
+ * (INV-33), which is what keeps the cutoff a deterministic function of its arguments (ADR-0036).
+ */
+export function expire(visit: Visit, now: number): Visit {
+  const kept = visit.savedNames.filter((saved) => now - saved.savedAt <= DAY_MS)
+  if (kept.length === visit.savedNames.length) return visit
+  return withSavedNames(visit, kept, null)
 }
 
 /** INV-3. '' when there is no greeting yet — the status region is always rendered (P1). */
@@ -207,7 +284,8 @@ export function alertText(visit: Visit): string | null {
  * null when nothing is saved. Its one-name case is the single slot's own sentence, unchanged.
  */
 export function savedNamesHintText(visit: Visit): string | null {
-  return visit.savedNames.length === 0 ? null : `Saved: ${visit.savedNames.join(', ')}`
+  if (visit.savedNames.length === 0) return null
+  return `Saved: ${visit.savedNames.map((saved) => saved.name).join(', ')}`
 }
 
 /**
@@ -224,4 +302,88 @@ export function refusalText(visit: Visit): string | null {
     case 'full':
       return FULL_LIST_MESSAGE
   }
+}
+
+/**
+ * INV-32. The age reading: one saved-at moment and the current time, in the words a person would
+ * actually use. Derived on every render and never stored, so there is no second copy of this
+ * answer anywhere for a tick to leave behind.
+ *
+ * It is a total pure function of two numbers, which is why it can live in this module while the
+ * stable absolute time cannot (ADR-0037): an elapsed span is the *difference* of two instants, so
+ * it needs no calendar and no timezone, whereas turning one instant into a local wall clock does.
+ *
+ * Whole units, floored, singular at exactly one. Elapsed is clamped at zero so a `now` earlier
+ * than the moment reads "saved just now" rather than a negative age. It never reaches a day: a
+ * row that old leaves the list before anyone can read it, so no reading needs the word "day".
+ */
+export function ageReadingText(savedAt: number, now: number): string {
+  const elapsed = Math.max(0, now - savedAt)
+  if (elapsed < MINUTE_MS) return 'saved just now'
+  if (elapsed < HOUR_MS) return `saved ${counted(Math.floor(elapsed / MINUTE_MS), 'minute')} ago`
+  return `saved ${counted(Math.floor(elapsed / HOUR_MS), 'hour')} ago`
+}
+
+/** The one place a counted unit is made plural, so the two readings cannot disagree about it. */
+function counted(count: number, unit: string): string {
+  return count === 1 ? `1 ${unit}` : `${count} ${unit}s`
+}
+
+/**
+ * INV-29. Which name is the newest — the one with the latest saved-at moment — or null when
+ * nothing is saved. What the newest marker marks, and what newest-first sorting will put first:
+ * both read the one ordering below, so the two can never disagree about which row is the most
+ * recent one, which would be a contradiction in the most visible place available (ADR-0038).
+ *
+ * The newest is defined by the moment and never by the position in the list. The two agree on
+ * every screen a visitor can actually produce, because the clock the transport reads moves
+ * forward — but a supplied instant is not something this module can vouch for (ADR-0034), so it
+ * trusts the moment rather than the order, which is what "most recent" means (seed, Ubiquitous
+ * language).
+ */
+export function newestSavedName(visit: Visit): string | null {
+  return byNewestFirst(visit.savedNames)[0]?.name ?? null
+}
+
+/**
+ * INV-29, INV-30. The saved names in the order they are to be displayed: the order they were
+ * saved in, or the newest first when the visitor has asked for that.
+ *
+ * Sorting is a view, not a reordering, and this signature is what makes that structural rather
+ * than remembered: the choice is an argument to one projection and never a field of the visit, so
+ * there is no sorted list for a rule to read. Every other reader — save, remove, greetAgain and
+ * the hint at the Name field — goes on reading visit.savedNames, which is written by one function
+ * and holds the names in the order the visitor saved them. A sort cannot corrupt the order the
+ * rules read, because it never touches it: it returns a new array and stores nothing.
+ *
+ * The default is the list exactly as it reads today, and deliberately not an ascending sort by
+ * moment: the two agree on every screen a visitor can produce, but only save order guarantees
+ * that a row never moves unless the visitor asks it to. Only the newest-first view consults
+ * moments, and it consults the one ordering the newest marker already reads (ADR-0038), so the
+ * marked row and the top row can never be two different rows.
+ */
+export function savedNamesInView(visit: Visit, newestFirst: boolean): readonly SavedName[] {
+  return newestFirst ? byNewestFirst(visit.savedNames) : visit.savedNames
+}
+
+/**
+ * INV-29. The saved names ordered latest moment first, ties broken in favour of the later save.
+ * The one ordering by moment in this module, private so no caller can grow a second definition
+ * of "newest" beside it.
+ *
+ * The reverse before the sort is what settles a tie: Array.prototype.sort is guaranteed stable,
+ * so tied entries come out in the order they went in, and reversing first is what makes that the
+ * *later* save — the save the visitor made second, which is what they mean by newer.
+ *
+ * That reverse will read as redundant to anyone who has not hit a tie, so here is the tie: two
+ * saves inside one millisecond are enough, and three names saved under a stopped test clock tie
+ * exactly. Without the reverse they come back in save order, so the marker would sit on the first
+ * name saved rather than the last, and newest-first sorting would display the list oldest first —
+ * the opposite of the answer this function exists to give (design.md §5.4, measured).
+ *
+ * It sorts a copy. The visit goes on holding names in save order, which is what every rule that
+ * reads the list sees (INV-30).
+ */
+function byNewestFirst(savedNames: readonly SavedName[]): readonly SavedName[] {
+  return [...savedNames].reverse().sort((a, b) => b.savedAt - a.savedAt)
 }

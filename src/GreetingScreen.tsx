@@ -1,14 +1,19 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { clockTimeText, nowMs, TICK_MS } from './clock'
 import {
+  ageReadingText,
   alertText,
+  expire,
   greetAgain,
   greetingText,
+  newestSavedName,
   newVisit,
   NOTHING_SAVED_MESSAGE,
   refusalText,
   remove,
   save,
   savedNamesHintText,
+  savedNamesInView,
   submit,
   type Visit,
 } from './visit'
@@ -17,6 +22,7 @@ const NAME_FIELD_ID = 'name'
 const ALERT_ID = 'name-error'
 const SAVED_NAMES_HEADING_ID = 'saved-names-heading'
 const SAVED_NAMES_HINT_ID = 'saved-names-hint'
+const SORT_CONTROL_ID = 'newest-first'
 
 export function GreetingScreen() {
   // Two component-local hooks, both dying at unmount: the visitor's draft (INV-6c) and the
@@ -25,6 +31,51 @@ export function GreetingScreen() {
   // visit, so they end when this mount does.
   const [rawName, setRawName] = useState<string>('')
   const [visit, setVisit] = useState<Visit>(newVisit)
+
+  // P25. The current time, as a piece of screen state — a reading of the outside world, never
+  // domain state: the visit records when each name was saved and knows nothing of "now". Every
+  // age reading on screen is derived from this one number, so all of them move together and none
+  // of them can go stale on its own.
+  const [now, setNow] = useState<number>(() => nowMs())
+
+  // P27, INV-30. Which way round the visitor wants to read the list — screen state, never domain
+  // state, and that is the whole of "sorting is a view, not a reordering": the visit is never told
+  // about it, so no rule that reads the list can see a sorted one. It starts false, which is
+  // oldest-first: the list reads exactly as it did before this control existed until the visitor
+  // asks for something else. It outlives an emptied list, because a preference is not a row
+  // (VH-04).
+  const [newestFirst, setNewestFirst] = useState<boolean>(false)
+
+  // P25. The only thing in this app that happens without the visitor: one interval for the whole
+  // screen, never one per row, whose callback takes a single clock reading and feeds both of the
+  // things that depend on the time — the readings on the rows, and the cutoff that decides which
+  // rows there still are. One reading rather than two is what keeps those two from disagreeing
+  // inside a single tick, which would show as a row reading its age one moment after the moment
+  // that dropped it. Fifteen seconds is TICK_MS's business (src/clock.ts) — this component holds
+  // no period of its own.
+  //
+  // Nothing here moves focus, and that is the whole of "falling off is not a removal": the
+  // visitor activated no control, so nothing they were reaching for was destroyed and there is
+  // nowhere they need to be sent (P19 stays the removal handler's alone). A tick that expires
+  // nothing hands the same visit back, which React treats as no change at all, so the region's
+  // nodes survive an ordinary tick untouched and time passing stays unannounced (INV-31).
+  //
+  // The cleanup is load-bearing rather than tidy: without it a remount leaks a second interval,
+  // and StrictMode mounts effects twice in development, so the leak would be there from the first
+  // run. The empty dependency list is what makes this one interval for the life of the mount.
+  //
+  // Known coupling (ADR-0041): the acceptance seam fakes setInterval, so a tick re-implemented
+  // with chained setTimeouts would keep the screen honest in a browser and go untested here.
+  useEffect(() => {
+    const tick = setInterval(() => {
+      // P26, the same rule the save handler below follows: the reading is taken here and handed
+      // to the updater, never read inside it.
+      const at = nowMs()
+      setNow(at)
+      setVisit((current) => expire(current, at))
+    }, TICK_MS)
+    return () => clearInterval(tick)
+  }, [])
 
   // A handle on the region, not a third piece of state: it is read only inside an event handler,
   // and nothing rendered depends on it (ADR-0004 stands, and ADR-0025's extraction tripwire is
@@ -37,6 +88,15 @@ export function GreetingScreen() {
   const greetVisitor = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setVisit((current) => submit(current, rawName))
+  }
+
+  // P26. The clock is read here, in the handler, and never inside the state updater: React may
+  // invoke an updater twice (StrictMode does, in development), and an updater that read the clock
+  // would not be a pure function of its argument — one press could then produce two different
+  // moments. Keeping the reading outside leaves the impurity where it already was.
+  const saveTheGreetedName = () => {
+    const savedAt = nowMs()
+    setVisit((current) => save(current, savedAt))
   }
 
   // Removing is the row's own command, addressed by the row's own name (ADR-0029): the row is a
@@ -66,6 +126,12 @@ export function GreetingScreen() {
   // Why the last save attempt added nothing, in the words the domain owns (INV-26), or null when
   // it added a name. P14 decides only whether an element exists.
   const refusal = refusalText(visit)
+
+  // P23. Which saved name is the newest, or null when nothing is saved (INV-29). Read once for
+  // the whole list rather than once per row: the domain answers "which name is the most recent"
+  // in one place, and this component never scans the rows for a latest moment of its own, so the
+  // marker cannot develop a second definition of newest beside the domain's.
+  const newest = newestSavedName(visit)
 
   // P10 (supersedes P3): everything describing the field, in the order it is read. The error
   // about the submission just made outranks a standing piece of context, so the alert's id comes
@@ -148,6 +214,29 @@ export function GreetingScreen() {
             twice a new DOM node, so the live region speaks again instead of falling silent
             (ADR-0030; announcement itself is a human check, VH-04(b)). */}
         {refusal !== null && <p key={visit.savedNamesRevision}>{refusal}</p>}
+        {/* P24: the way into the other view, inside the region it reorders and above the rows it
+            reorders, so the visitor reads the control before the order it explains (the mockup's
+            placement). A real checkbox and never a button wearing aria-pressed: checked and
+            unchecked is exactly what this is, and a checkbox says so to every visitor without the
+            component having to name a state. It is absent while nothing is saved rather than
+            disabled — there is no order to choose between until there are rows, and a disabled
+            control explains nothing about why it cannot be used (P17's rule, applied again). The
+            condition reads the visit's own list, never the view below it. Known consequence: the
+            control sits inside a polite live region, so flipping it changes that region's contents
+            (VH-03). */}
+        {visit.savedNames.length > 0 && (
+          <div>
+            <input
+              id={SORT_CONTROL_ID}
+              type="checkbox"
+              checked={newestFirst}
+              onChange={(event) => setNewestFirst(event.target.checked)}
+            />
+            {/* The name a visitor reads and the name assistive technology announces are one DOM
+                node, tied to the control by htmlFor, so the two cannot drift apart. */}
+            <label htmlFor={SORT_CONTROL_ID}>Newest first</label>
+          </div>
+        )}
         {/* P15: either the empty state or the rows, never both and never neither. key={name} is
             legitimate because INV-17 forbids duplicates, so appending leaves every existing
             row's DOM nodes — and the focus inside them, once issues 02 and 03 add controls —
@@ -157,13 +246,43 @@ export function GreetingScreen() {
           <p>{NOTHING_SAVED_MESSAGE}</p>
         ) : (
           <ul>
-            {visit.savedNames.map((name) => (
+            {/* P27: the rows come from the domain's view of the list, and this component never
+                sorts, reverses or compares moments itself — the order the visitor sees and the row
+                the marker sits on are two answers from one ordering rule, so they cannot disagree
+                (INV-29). key={name} is what carries a row's DOM node, and the focus inside it,
+                across a re-sort as well as across a save and a removal. */}
+            {savedNamesInView(visit, newestFirst).map(({ name, savedAt }) => (
               // P16: the row's own name first, then the controls that act on it — "Greet me
               // again as <name>" (issue 02), then "Remove <name>" (issue 03). The destructive
               // control comes last, so that neither keyboard order nor pointer aim puts Remove
               // where a visitor reaching for Greet me again will land (ADR-0031).
-              <li key={name}>
+              //
+              // P22: the row's accessible name carries the stable absolute time — the unmoving
+              // form of the same moment, offered to assistive technology in the age reading's
+              // place. It is computed from two values that never change for the life of the row,
+              // so a tick cannot move it, which is the whole of "the passage of time is never
+              // announced" seen from the other side (ADR-0040). An aria-label is what makes the
+              // row nameable at all: a listitem takes no accessible name from its contents.
+              <li key={name} aria-label={`${name}, saved at ${clockTimeText(savedAt)}`}>
                 <span>{name}</span>
+                {/* P21: how long ago this name was saved, in the words the domain owns — derived
+                    on every render from the moment and the current time, so it stays true while
+                    the visitor sits here rather than freezing at whatever it said when the row
+                    was drawn. This is the only node in the region whose text changes on a tick,
+                    and aria-hidden is what keeps that change out of the accessibility tree, so
+                    the polite region cannot announce time passing. That is the mechanism of a
+                    requirement, not decoration being hidden — and it is why the row needs the
+                    stable time above. Whether a real screen reader honours it is VH-02. */}
+                <span aria-hidden="true">{ageReadingText(savedAt, now)}</span>
+                {/* P23: the marker on the one row holding the newest name, so the visitor can
+                    find their most recent save at a glance instead of comparing every row's age
+                    reading. Exactly one row can carry it, because the domain answers with one
+                    name and no two rows share a name (INV-17). Deliberately not aria-hidden,
+                    unlike the reading above it: which name is newest is a fact about the list,
+                    not the passage of time, so a screen-reader visitor gets the same answer as a
+                    sighted one — and it is a word, never a colour or an icon alone, so nothing
+                    about it is lost in greyscale or forced colours. */}
+                {name === newest && <span>Newest</span>}
                 {/* P16, P12: a way back to this name without retyping it. The control carries
                     the row's name, which reverses the single slot's fixed-name rule and is
                     meant to (seed, Decisions): a row's control acts on one name for as long as
@@ -198,7 +317,7 @@ export function GreetingScreen() {
           // P12: type="button" and outside the <form>, so activating it is a save and never a
           // submission; and it sits outside every keyed node above, so React reuses this same DOM
           // node across a save and the visitor's focus survives its own click.
-          <button type="button" onClick={() => setVisit(save)}>
+          <button type="button" onClick={saveTheGreetedName}>
             Save this name
           </button>
         )}

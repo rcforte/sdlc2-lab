@@ -1,5 +1,6 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
+import { TICK_MS } from './clock'
 import { GreetingScreen } from './GreetingScreen'
 
 // The trimming scenarios assert the greeting with an anchored regex and whitespace
@@ -38,6 +39,44 @@ const FULL_LIST_TEXT = 'Five names is the limit. Remove one to save another.'
 // (design.md §5.4).
 const rowsInTheSavedNamesRegion = (): HTMLElement[] =>
   within(screen.getByRole('region', { name: SAVED_NAMES_REGION })).queryAllByRole('listitem')
+
+// "the row for <name>" — found by the row's own name, never by index: the saved-at scenarios are
+// about what one row says, and an index would quietly follow a different row the moment the list
+// changed shape. The name node is the only one in a row whose whole text is the name ("Greet me
+// again as Ada" and "Remove Ada" merely contain it), and finding exactly one row is asserted
+// rather than assumed. It sits beside the rows themselves, and not inside one slice's describe
+// block, because both saved-at slices ask the same question of a row and two spellings of it is
+// how the two would drift apart.
+const rowFor = (name: string): HTMLElement => {
+  const matches = rowsInTheSavedNamesRegion().filter(
+    (row) => within(row).queryByText(name) !== null,
+  )
+  expect(matches).toHaveLength(1)
+  return matches[0]
+}
+
+// "the row for <name> shows the label <Newest>" — the marker is a node of its own inside that row,
+// matched as that node's whole text, so it can never be satisfied by a row's other words. It sits
+// beside the rows for the same reason rowFor does: three saved-at blocks ask this question now —
+// issue 02's, about which row the marker goes to; issue 03's, about the marker surviving a
+// newest-first sort; and issue 04's, about a marker outliving the row that fell off beside it —
+// and three spellings of it is how they would drift apart. The word is copied from the Gherkin
+// rather than imported from the component, for the reason the rest of this file already gives: a
+// scenario that imported it would pass whatever that word happened to become.
+const MARKER_TEXT = 'Newest'
+
+const expectMarkerOn = (name: string) => {
+  expect(within(rowFor(name)).getByText(MARKER_TEXT)).toBeInTheDocument()
+}
+
+// "When <so much time> passes with the visitor doing nothing" — no interaction at all: the clock
+// moves, and whatever the screen does about that it does by itself. Shared by the two blocks that
+// move the clock (issues 01 and 04), each of which turns the narrow fake timers on for itself.
+const timePasses = async (milliseconds: number) => {
+  await act(async () => {
+    vi.advanceTimersByTime(milliseconds)
+  })
+}
 
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
@@ -1975,5 +2014,747 @@ describe('Greeting screen', () => {
     const saveControl = within(region).getByRole('button', { name: SAVE_CONTROL })
     expect(saveControl).toBeVisible()
     expect(saveControl).toBeEnabled()
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // saved-at issue 01 — Every saved name shows when it was saved, and the reading stays honest.
+  //
+  // The readings are copied from this issue's Gherkin rather than imported from src/visit.ts, for
+  // the reason the rest of this file already gives: a scenario that imported the words would pass
+  // whatever those words happened to become.
+  // -------------------------------------------------------------------------------------------
+  describe('the age reading on a saved name', () => {
+    // The wall clock every scenario below saves against. A fixed *local* instant, built from
+    // parts rather than parsed from an ISO string, so the time a visitor's browser would show is
+    // 14:20 wherever this suite runs — the stable absolute time is the local wall clock, and no
+    // scenario may pass or fail on the machine's timezone (feature.md, Out of scope).
+    const SAVE_INSTANT = new Date(2026, 7, 23, 14, 20, 0, 0)
+    // "a stable absolute time" — a time of day, not a date (seed). Asserted as the time this
+    // clock reads and not as an exact accessible name: the wording wrapped around the time is the
+    // architect's, not agreed copy, and is still a human check (VH-01). What the criterion fixes
+    // is that the time is in there and does not move.
+    const STABLE_TIME = /\b14:20\b/
+    // Where that same clock has got to five minutes later — the value the row's accessible name
+    // must NOT have followed.
+    const FIVE_MINUTES_LATER = /\b14:25\b/
+    // The words the criterion forbids in the accessible name. Their absence there, while they are
+    // plainly on screen, is the whole of "the passage of time is never announced".
+    const TICKING_WORDS = /ago|just now/
+
+    // design.md §5.4, measured in this repo: a full vi.useFakeTimers() makes every
+    // `await user.click(...)` in this file hang until it times out, because @testing-library/dom
+    // recognises only *jest*'s fake timers and otherwise awaits a faked setTimeout(0) that can
+    // never fire. Faking setInterval and Date alone advances both the screen's own tick and the
+    // clock it reads, and leaves user-event untouched. The narrowness is a known coupling: a tick
+    // re-implemented with chained setTimeouts would not be advanced by these scenarios (ADR-0041).
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+      vi.setSystemTime(SAVE_INSTANT)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    // "the row for <name> shows the age reading <words>" — the reading is a node of its own,
+    // matched as that node's whole text, so "saved 1 minute ago" can never be satisfied by
+    // "saved 11 minutes ago" and a reading is never mistaken for the row's other words.
+    const expectAgeReading = (name: string, reading: string) => {
+      expect(within(rowFor(name)).getByText(reading)).toBeInTheDocument()
+    }
+
+    it('reads "saved just now" on a name that has just been saved', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has been greeted "Hello, Ada"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the row for "Ada" shows the age reading "saved just now"
+      expectAgeReading('Ada', 'saved just now')
+    })
+
+    it('counts up in minutes, unprompted, while the screen stays open', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" and the row for "Ada" reads "saved just now"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      expectAgeReading('Ada', 'saved just now')
+
+      // When 60 seconds pass with the visitor doing nothing
+      await timePasses(60_000)
+
+      // Then the row for "Ada" shows the age reading "saved 1 minute ago"
+      expectAgeReading('Ada', 'saved 1 minute ago')
+
+      // When another 60 seconds pass with the visitor doing nothing
+      await timePasses(60_000)
+
+      // Then the row for "Ada" shows the age reading "saved 2 minutes ago"
+      expectAgeReading('Ada', 'saved 2 minutes ago')
+    })
+
+    it('moves from minutes to hours after sixty minutes', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" and the row for "Ada" reads "saved just now"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      expectAgeReading('Ada', 'saved just now')
+
+      // When 60 minutes pass with the visitor doing nothing
+      await timePasses(60 * 60_000)
+
+      // Then the row for "Ada" shows the age reading "saved 1 hour ago"
+      expectAgeReading('Ada', 'saved 1 hour ago')
+    })
+
+    it('gives each row an age reading of its own', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada", then 2 minutes later saved "Bob"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      await timePasses(2 * 60_000)
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+
+      // Then the row for "Ada" shows the age reading "saved 2 minutes ago"
+      expectAgeReading('Ada', 'saved 2 minutes ago')
+      // And the row for "Bob" shows the age reading "saved just now"
+      expectAgeReading('Bob', 'saved just now')
+    })
+
+    it('names a row with a stable absolute time, never with the ticking words', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+
+      // Then the row for "Ada" has an accessible name that includes a stable absolute time
+      expect(rowFor('Ada')).toHaveAccessibleName(STABLE_TIME)
+      // And the row for "Ada" has an accessible name that does not include the words "ago" or
+      // "just now" …
+      expect(rowFor('Ada')).not.toHaveAccessibleName(TICKING_WORDS)
+      // … which is only worth asserting because those words are plainly on the row.
+      expectAgeReading('Ada', 'saved just now')
+
+      // When 5 minutes pass with the visitor doing nothing
+      await timePasses(5 * 60_000)
+
+      // Then the row for "Ada"'s accessible name still includes that same stable absolute time,
+      // unchanged — it did not follow the clock to 14:25 …
+      expect(rowFor('Ada')).toHaveAccessibleName(STABLE_TIME)
+      expect(rowFor('Ada')).not.toHaveAccessibleName(FIVE_MINUTES_LATER)
+      expect(rowFor('Ada')).not.toHaveAccessibleName(TICKING_WORDS)
+      // … while the reading beside it did move, so the row demonstrably ticked and the stable
+      // time held anyway, rather than both standing still.
+      expectAgeReading('Ada', 'saved 5 minutes ago')
+    })
+
+    it('does not restart the age reading when an already-saved name is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 10 minutes ago
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      await timePasses(10 * 60_000)
+      expectAgeReading('Ada', 'saved 10 minutes ago')
+      // And the visitor is currently greeted "Hello, Ada"
+      expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region reads "Ada is already saved."
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        'Ada is already saved.',
+      )
+      // And the row for "Ada" still shows the age reading "saved 10 minutes ago"
+      expectAgeReading('Ada', 'saved 10 minutes ago')
+    })
+
+    it('shows no age reading at all while nothing is saved', () => {
+      // Given the visitor has not saved any name
+      render(<GreetingScreen />)
+
+      // Then the Saved names region reads "No names saved yet."
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        NOTHING_SAVED_TEXT,
+      )
+      // And no text reading "ago" is present. Page-wide rather than scoped to the region, and
+      // matched on an element's own text, so a stray reading rendered anywhere would be caught.
+      expect(screen.queryAllByText(/ago/)).toHaveLength(0)
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // saved-at issue 02 — The most recently saved name is marked.
+  //
+  // The marker's word is copied from this issue's Gherkin rather than imported from the
+  // component, for the reason the rest of this file already gives: a scenario that imported the
+  // word would pass whatever that word happened to become.
+  //
+  // No fake clock here, unlike issue 01's scenarios: not one of these criteria has time passing
+  // in it. The marker is a fact about which row holds the latest saved-at moment, and every
+  // scenario below establishes that fact by saving names, which is the visitor's only route into
+  // the list.
+  // -------------------------------------------------------------------------------------------
+  describe('the newest marker', () => {
+    // "the row for <name> no longer shows the label <Newest>" — the same query, answered the other
+    // way, so a marker that moved and a marker that was never there are not two different reads.
+    const expectNoMarkerOn = (name: string) => {
+      expect(within(rowFor(name)).queryByText(MARKER_TEXT)).toBeNull()
+    }
+
+    // "exactly one row shows the label <Newest>" — counted over the rows themselves rather than
+    // over the markers, because the criterion is about rows: two markers inside one row would be
+    // a defect this would otherwise report as a pass.
+    const rowsShowingTheMarker = (): HTMLElement[] =>
+      rowsInTheSavedNamesRegion().filter((row) => within(row).queryByText(MARKER_TEXT) !== null)
+
+    it('marks the only saved name as the newest', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only — the named step asserts the "only", so no
+      // scenario below can pass from a list that quietly holds more than it claims.
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+
+      // Then the row for "Ada" shows the label "Newest"
+      expectMarkerOn('Ada')
+    })
+
+    it('moves the marker to a second name when it is saved', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only, and the row for "Ada" shows the label "Newest"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      expectMarkerOn('Ada')
+
+      // When the visitor saves "Bob"
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+
+      // Then the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the row for "Ada" no longer shows the label "Newest"
+      expectNoMarkerOn('Ada')
+    })
+
+    it('keeps the marker on exactly one row', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+      // Then exactly one row shows the label "Newest"
+      expect(rowsShowingTheMarker()).toHaveLength(1)
+      // And it is the row for "Cleo"
+      expect(rowsShowingTheMarker()[0]).toBe(rowFor('Cleo'))
+    })
+
+    it('moves the marker to the next-newest when the newest name is removed', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+
+      // When the visitor activates "Remove Bob"
+      await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+      // Then the row for "Ada" shows the label "Newest"
+      expectMarkerOn('Ada')
+    })
+
+    it('does not move the marker to an older name that is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the visitor is currently greeted "Hello, Ada"
+      await beGreeted(user, 'Ada')
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region reads "Ada is already saved." — the same refusal, in the same
+      // words, that this file already pins for issue 04 of remembered-names: re-saving a name
+      // leaves the list genuinely unchanged, moments and all, rather than moving a field nobody
+      // was told about.
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        ADA_ALREADY_SAVED_TEXT,
+      )
+      // And the row for "Bob" still shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the row for "Ada" does not show the label "Newest"
+      expectNoMarkerOn('Ada')
+    })
+
+    it('shows no marker at all while nothing is saved', () => {
+      // Given the visitor has not saved any name
+      render(<GreetingScreen />)
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        NOTHING_SAVED_TEXT,
+      )
+
+      // Then no text reading "Newest" is present. Page-wide rather than scoped to the region, and
+      // matched on an element's own whole text, so a marker rendered anywhere would be caught.
+      expect(screen.queryAllByText(MARKER_TEXT)).toHaveLength(0)
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // saved-at issue 04 — A saved name older than a day falls off on its own.
+  //
+  // Every "When" below is time passing with the visitor doing nothing, so these scenarios operate
+  // no control at all: they move the clock and then ask what the screen did by itself. The fake
+  // timers are the narrow ones issue 01's block explains and ADR-0041 records — setInterval,
+  // clearInterval and Date only, so the screen's own tick and the clock it reads both advance while
+  // user-event is left untouched.
+  // -------------------------------------------------------------------------------------------
+  describe('a saved name older than a day', () => {
+    // The wall clock these scenarios save against — a fixed *local* instant built from parts, for
+    // the reason issue 01's block gives: no scenario may pass or fail on the machine's timezone.
+    const AN_AFTERNOON = new Date(2026, 7, 23, 14, 20, 0, 0)
+    // Ten to midnight on the same day, for the one scenario about a calendar boundary.
+    const TEN_TO_MIDNIGHT = new Date(2026, 7, 23, 23, 50, 0, 0)
+
+    const MINUTE = 60_000
+    const HOUR = 60 * MINUTE
+    const DAY = 24 * HOUR
+
+    // "more than 24 hours pass" — a day, and then the one tick it takes the screen to look again.
+    // The screen re-reads the clock once every TICK_MS and never in between, so a row leaves at the
+    // first tick strictly after its own 24-hour mark rather than at the mark itself (design.md
+    // §5.4, measured; the lateness is the staleness N17 accepts). Every step below that puts a name
+    // past the cutoff therefore adds that one tick, and the period is imported rather than copied
+    // so the allowance stays exactly one tick if the screen's tick ever changes.
+    const MORE_THAN_A_DAY = DAY + TICK_MS
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+      vi.setSystemTime(AN_AFTERNOON)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('falls off once more than a day has passed since it was saved', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+
+      // When more than 24 hours pass with the visitor doing nothing
+      await timePasses(MORE_THAN_A_DAY)
+
+      // Then no row for "Ada" is present …
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+      // … and the name is gone from the screen altogether: the row and the reminder at the Name
+      // field were its two homes, and a visitor must meet neither again.
+      expect(screen.queryByText('Ada')).toBeNull()
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
+      // And the Saved names region's contents are announced. What a test can see of an
+      // announcement is what the merged removal scenarios already pin: the region is still the
+      // polite live region, and the new contents really are inside it rather than somewhere else
+      // on the screen. Whether a screen reader speaks is a human check (VH-02).
+      const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+      expect(region).toHaveAttribute('aria-live', 'polite')
+      expect(within(region).getByText(NOTHING_SAVED_TEXT)).toBeVisible()
+    })
+
+    // Not the same scenario as the one above with a smaller number: this is the one that fails a
+    // cutoff that rounds, counts calendar days, or fires on the first tick after a name is a few
+    // hours old. The reading is asserted alongside, so a screen whose clock never moved at all —
+    // which would also keep the row — cannot pass it.
+    it('does not fall off before a day has passed', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+
+      // When 23 hours and 59 minutes pass with the visitor doing nothing
+      await timePasses(23 * HOUR + 59 * MINUTE)
+
+      // Then the row for "Ada" is still present
+      expect(rowFor('Ada')).toBeInTheDocument()
+      // … and it aged the whole way there, so the clock demonstrably ran rather than stood still
+      expect(within(rowFor('Ada')).getByText('saved 23 hours ago')).toBeInTheDocument()
+    })
+
+    // The scenario that fails a cutoff written against the calendar — "drop anything not saved
+    // today" is the plausible wrong rule, and every other scenario in this block passes under it.
+    // Ten to midnight is the one clock reading that can tell the two apart.
+    it('measures the cutoff from the saved-at moment, not from a calendar boundary', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" at 23:50
+      vi.setSystemTime(TEN_TO_MIDNIGHT)
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      expect(rowFor('Ada')).toHaveAccessibleName(/\b23:50\b/)
+
+      // When 20 minutes pass with the visitor doing nothing, crossing midnight
+      await timePasses(20 * MINUTE)
+      // The crossing is the whole point of the scenario and no rendered node says what day it is,
+      // so the fixture asserts its own clock really did reach the next day — without this the
+      // scenario could quietly become "20 minutes pass in the afternoon", which proves nothing.
+      expect(new Date().getDate()).toBe(TEN_TO_MIDNIGHT.getDate() + 1)
+
+      // Then the row for "Ada" is still present
+      expect(rowFor('Ada')).toBeInTheDocument()
+      // … reading its age from its own moment, twenty minutes back, and not from the new day
+      expect(within(rowFor('Ada')).getByText('saved 20 minutes ago')).toBeInTheDocument()
+    })
+
+    // Falling off is the one write to this list that moves no focus. Removing sends focus to the
+    // region because it destroys the control that was pressed (P19); nothing was pressed here, so
+    // there is nothing to send anywhere — and a visitor mid-sentence in the Name field must not
+    // find themselves somewhere else because a row they had forgotten about ran out.
+    it("moves no focus when a row falls off, unlike the visitor's own removal", async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor's focus is currently on the Name field
+      // And the visitor saved "Ada" earlier in the visit
+      //
+      // Built in the other order, because saving is done from a control and leaves the visitor on
+      // it: the field is focused last, which is the state the two steps together describe.
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await user.click(screen.getByRole('textbox', { name: 'Name' }))
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus()
+
+      // When more than 24 hours pass with the visitor doing nothing
+      await timePasses(MORE_THAN_A_DAY)
+
+      // The row really did go — focus staying put would prove nothing if nothing had happened.
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+      // Then the Name field still has focus
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus()
+      // … and specifically not the Saved names region, which is where a removal would have sent it
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).not.toHaveFocus()
+    })
+
+    // The scenario that fails a cutoff implemented as a display filter. A row hidden at render
+    // time satisfies every "no row for Ada is present" step in this block while the visit quietly
+    // goes on holding five names, so the visitor is refused at a list they can see has room in it.
+    // Falling off has to give the slot back, exactly as removing does.
+    it('frees a slot for another save, exactly like removing does', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved five names, the oldest being "Ada", saved more than 24 hours
+      // ago …
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      // … and the other four were saved less than 24 hours ago. Twenty-three hours after Ada, so
+      // that one stretch of time can carry her past the cutoff while leaving the four well inside
+      // it — the list is full at a spread of ages, which is the only shape this scenario is about.
+      await timePasses(23 * HOUR)
+      for (const name of ['Bob', 'Cleo', 'Dee', 'Eve']) {
+        await beGreeted(user, name)
+        await saveTheGreetedName(user, name)
+      }
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(5)
+
+      // When enough time passes that "Ada" falls off the list
+      await timePasses(HOUR + TICK_MS)
+      expect(screen.queryByText('Ada')).toBeNull()
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(4)
+
+      // And the visitor has been greeted "Hello, Fay"
+      await beGreeted(user, 'Fay')
+      // And the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region contains a row for "Fay"
+      expect(rowFor('Fay')).toBeInTheDocument()
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(5)
+      // … and the limit was never mentioned: the slot Ada left was a real one
+      expect(screen.queryByText(FULL_LIST_TEXT)).toBeNull()
+    })
+
+    // The marker is re-derived from the moments that are left, never carried on a row, so a list
+    // that loses a row on its own is not a special case for it. This fails an implementation that
+    // marks a position — "the last row", "the row saved most recently in this render" — which
+    // every scenario in issue 02's block also passes.
+    it('leaves the newest marker on the row that survives a fall-off', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada", then 23 hours later saved "Bob"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await timePasses(23 * HOUR)
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+      // And the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+
+      // When enough time passes that "Ada" is more than 24 hours old and "Bob" is not
+      await timePasses(HOUR + TICK_MS)
+
+      // Then no row for "Ada" is present
+      expect(screen.queryByText('Ada')).toBeNull()
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(1)
+      // And the row for "Bob" still shows the label "Newest"
+      expectMarkerOn('Bob')
+    })
+
+    // The product's keep-not-refresh decision, seen through the third of the three things that
+    // read a saved-at moment (the sort order and the marker are issues 03 and 02). It kills a save
+    // that quietly rewrites the record it found: such a save passes every other scenario in this
+    // block, and the visitor only meets it a day later, when a name they thought they had renewed
+    // is gone or one they thought was stale is still there.
+    it('does not restart the 24-hour clock when an already-saved name is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 20 hours ago
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await timePasses(20 * HOUR)
+      expect(within(rowFor('Ada')).getByText('saved 20 hours ago')).toBeInTheDocument()
+      // And the visitor is currently greeted "Hello, Ada"
+      expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region reads "Ada is already saved."
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        ADA_ALREADY_SAVED_TEXT,
+      )
+
+      // When 4 more hours pass with the visitor doing nothing — and the one further tick it takes
+      // the screen to look again, for the reason MORE_THAN_A_DAY gives above: this is the only
+      // step in the block that lands exactly on a name's 24-hour mark, and a row is dropped at the
+      // first tick strictly after it. Fifteen seconds out of four hours does not soften the
+      // criterion: had the re-save moved the moment, this row would have another twenty hours to
+      // run and no amount of ticking would take it away.
+      await timePasses(4 * HOUR + TICK_MS)
+
+      // Then no row for "Ada" is present — her day ran out 24 hours after the *first* save
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+      expect(screen.queryByText('Ada')).toBeNull()
+    })
+
+  })
+
+
+  // ---------------------------------------------------------------------------------------
+  // saved-at, issue 03 — sorting the list newest-first.
+  //
+  // Sorting is a view, not a reordering: the visit goes on holding names in the order they were
+  // saved, and every scenario below that looks anywhere other than at the rows — at the Name
+  // field's hint, at what a removal takes out, at where a new save lands — is there to prove it.
+  // ---------------------------------------------------------------------------------------
+
+  describe('newest-first sorting', () => {
+    // The control's accessible name, copied from issue 03's Gherkin rather than read off the
+    // component: a scenario that asked the component what its control is called would pass
+    // whatever name the component happened to give it.
+    const SORT_CONTROL = 'Newest first'
+
+    // "a checkbox named 'Newest first'" — queried by role and accessible name, so a button
+    // wearing aria-pressed, or a checkbox whose label never reached it, does not answer here.
+    const sortControl = (): HTMLElement => screen.getByRole('checkbox', { name: SORT_CONTROL })
+
+    // "the Saved names region displays rows in the order …" — the whole display, asserted as an
+    // ordered list and never as a set: the length comes first, so no scenario can pass against a
+    // region holding a row it never mentioned.
+    const expectRowsInDisplayOrder = (...names: string[]) => {
+      const rows = rowsInTheSavedNamesRegion()
+      expect(rows).toHaveLength(names.length)
+      names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
+    }
+
+    it('displays the names in save order, with the control off, until the visitor asks otherwise', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob", "Cleo" — the list
+      // exactly as it read before this control existed
+      expectRowsInDisplayOrder('Ada', 'Bob', 'Cleo')
+      // And a checkbox named "Newest first" is present and unchecked
+      expect(sortControl()).not.toBeChecked()
+    })
+
+    it('reorders the display when the visitor checks "Newest first"', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+      // When the visitor checks "Newest first"
+      await user.click(sortControl())
+
+      // Then the Saved names region displays rows in the order "Cleo", "Bob", "Ada"
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+    })
+
+    it('returns to save order when the visitor unchecks "Newest first"', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+      expect(sortControl()).toBeChecked()
+      expectRowsInDisplayOrder('Bob', 'Ada')
+
+      // When the visitor unchecks "Newest first"
+      await user.click(sortControl())
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob" — the view is a way
+      // of looking at the list, so leaving it puts the visitor back where they started
+      expectRowsInDisplayOrder('Ada', 'Bob')
+      expect(sortControl()).not.toBeChecked()
+    })
+
+    // The scenario that proves sorting is a view rather than a reordering, at the one place the
+    // difference is visible: the hint reads the list the visit is holding, so if checking the box
+    // had reordered that list instead of the display, this is where it would show.
+    it('still lists the names in save order at the Name field while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+
+      // Then the Name field is described by text reading "Saved: Ada, Bob, Cleo"
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+        'Saved: Ada, Bob, Cleo',
+      )
+    })
+
+    // A removal is aimed by name, and the rows it is aimed at have moved. This fails an
+    // implementation that removes by position — which reads the same on the default view and
+    // takes out the wrong name the moment the display is reversed — and it re-asks both views
+    // afterwards, because a list that ends up right on screen while the visit holds something
+    // else is a defect the rows alone would not show.
+    it('removes the name the visitor named, not the row in that position, while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+      // And the visitor has checked "Newest first", so rows display "Cleo", "Bob", "Ada"
+      await user.click(sortControl())
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+
+      // When the visitor activates "Remove Bob"
+      await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+      // Then the Saved names region displays rows in the order "Cleo", "Ada"
+      expectRowsInDisplayOrder('Cleo', 'Ada')
+      // And the Name field is described by text reading "Saved: Ada, Cleo"
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+        'Saved: Ada, Cleo',
+      )
+    })
+
+    it('puts a newly saved name at the top while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+      expectRowsInDisplayOrder('Bob', 'Ada')
+
+      // When the visitor saves "Cleo". Saved by hand rather than through the named step, because
+      // that step looks for the new row at the end of the list — which is exactly where a name
+      // saved under this view must not be.
+      await beGreeted(user, 'Cleo')
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region displays rows in the order "Cleo", "Bob", "Ada" — the view is
+      // re-derived on every render, so a save is seen through it rather than appended to it
+      expectRowsInDisplayOrder('Cleo', 'Bob', 'Ada')
+    })
+
+    // The marker earns its place in this view too, even though it lands on the top row: one rule
+    // for which row is the newest, whatever the visitor has done to the control (po Decisions).
+    it('still marks the newest name while sorting newest-first', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor has checked "Newest first"
+      await user.click(sortControl())
+
+      // Then the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+    })
+
+    // The product's keep-not-refresh decision, seen through the sort — the third of the four
+    // places the same answer has to hold. A save that moved the moment it found would leave the
+    // list reading the same way here on the default view and give itself away the moment the
+    // visitor reverses it.
+    it('reorders nothing under either view when an older name is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+      // And the visitor is currently greeted "Hello, Ada"
+      await beGreeted(user, 'Ada')
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob"
+      expectRowsInDisplayOrder('Ada', 'Bob')
+
+      // When the visitor checks "Newest first"
+      await user.click(sortControl())
+
+      // Then the Saved names region displays rows in the order "Bob", "Ada" — Ada is still the
+      // older of the two, because the save that was refused left her moment where it was
+      expectRowsInDisplayOrder('Bob', 'Ada')
+    })
+
+    it('offers no way to sort while nothing is saved', () => {
+      // Given the visitor has not saved any name
+      render(<GreetingScreen />)
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        NOTHING_SAVED_TEXT,
+      )
+
+      // Then no checkbox named "Newest first" is present
+      expect(screen.queryByRole('checkbox', { name: SORT_CONTROL })).toBeNull()
+      // And no checkbox is present at all: a sort control rendered without its name would be a
+      // control the visitor trips over and cannot identify, which is worse than the one the
+      // criterion forbids.
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    })
   })
 })
