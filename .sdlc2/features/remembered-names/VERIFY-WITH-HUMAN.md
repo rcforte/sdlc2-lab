@@ -70,6 +70,14 @@ did not type, or refuses with a sentence naming one. And on this screen `Hello, 
 **Ask a human:** is the second row the right outcome, or should `ada` be refused as already saved?
 No acceptance criterion decides it — every scenario uses distinctly spelled names.
 
+**Resolution (human, 2026-08-23). Confirmed as designed — `ada` becomes a second row.** ADR-0028
+stands, and `savedNames.includes(name)` stays exact-after-trim. The deciding reason is consistency
+with what the screen already does: `Hello, ada` and `Hello, Ada` are two different greetings, and a
+saved name is captured *from a greeting*, so refusing `ada` would make the saved list disagree with
+the greeting that produced it. The costs are accepted and are the visitor's own doing: two
+near-identical controls, and one of the five slots spent. Every case-insensitive alternative either
+displays a spelling the visitor never typed or refuses with a sentence naming one.
+
 ---
 
 ## VH-03 — Which refusal wins when the list is full *and* the name is already saved?
@@ -83,6 +91,11 @@ make room for a name that is already there.
 
 **Ask a human:** confirm. No acceptance criterion covers this combination.
 
+**Resolution (human, 2026-08-23). Confirmed.** ADR-0027 stands. `save()` tests `already-saved`
+before `full`, which is the order that makes the sentence true: nothing was added *because the name
+is already there*, and the limit is beside the point. Telling the visitor to remove a name would
+send them to free a slot that this save was never going to use.
+
 ---
 
 ## VH-04 — Screen-reader pass over the Saved names region (continues `saved-name` VH-02/VH-04)
@@ -90,18 +103,29 @@ make room for a name that is already there.
 Nothing below is observable under Vitest/jsdom: the suite can assert `aria-live="polite"`, the
 correct text, the node swap and `toHaveFocus()`, and nothing more.
 
+**Status 2026-08-23:** (e) is settled from the code and needs no pass; (b)'s structural
+precondition is confirmed, leaving only whether it is audible. **(a), (c), (d) and (f) remain open
+and need a person with a screen reader** — they are judgements about bearability, urgency and
+whether five names read as a sentence or a recital.
+
 - **(a)** Save a name. Is the region announced, and is the announcement bearable now that it
   includes the new row's two control names (`Ada`, `Greet me again as Ada`, `Remove Ada`)?
 - **(b)** With `Ada` saved and greeted as `Ada`, press *Save this name* **twice**. Is
   *"Ada is already saved."* announced **both** times? (This is the case the keyed refusal node
-  exists for — ADR-0030.)
+  exists for — ADR-0030.) *Precondition checked 2026-08-23: `savedNamesRevision` advances on every
+  save attempt including refused ones, so the `<p>` does re-key. What is unverified is whether the
+  swap is actually re-announced, which only a screen reader can say.*
 - **(c)** With five saved and greeted as a sixth, press *Save this name*. Is the limit sentence
   announced politely — and should it be? The seed's own open question asks whether the refusals
   should interrupt instead (`role="alert"`); the design left them where the seed put them.
 - **(d)** Remove a name. Focus moves to the region — are its **new** contents read, and is removing
   the *only* saved name (so the region becomes *"No names saved yet."*) still clear?
-- **(e)** Confirm a save never re-announces the greeting, and greeting again never re-announces the
-  region.
+- **(e)** ~~Confirm a save never re-announces the greeting, and greeting again never re-announces
+  the region.~~ **Settled structurally, 2026-08-23 — no screen-reader pass needed.** The greeting's
+  child is keyed on `greetingCount`, and `save()` returns through `withSavedNames`, which never
+  touches it. The region's refusal child is keyed on `savedNamesRevision`, and `submit()` carries
+  that field through unchanged, so greeting and greeting again cannot re-key it. Neither region can
+  announce the other's news.
 - **(f)** With five names saved, tab to the Name field. The description reads
   *"Saved: Ada, Bob, Cleo, Deb, Eve"* — plus the blank-name alert first when both are present. Is
   that a sentence or a recital? This is the seed's open question about the hint mid-draft, and the
@@ -120,6 +144,13 @@ This follows the product brief, which ships stories 01 and 02 together as one wa
 so the gap exists only inside that pair. Flagged so that nobody reviewing the intermediate branch
 reads the deletion as an accident. **Ask a human:** confirm the two slices are merged together, and
 that no demo happens off slice 01 alone.
+
+**Resolution (human, 2026-08-23). Confirmed — 01 and 02 merge together, as one step.** Verified in
+the diffs before deciding: `slice/…/01` removes the `Greet me again` button from
+`GreetingScreen.tsx`, and `slice/…/02` adds `Greet me again as {name}` per row. The control cannot
+be generalised in place, so there is no version of slice 01 that both replaces the single slot and
+keeps a working greet-again control. Merge them as a pair; do not demo, review or cut a release
+from slice 01 alone.
 
 ---
 
