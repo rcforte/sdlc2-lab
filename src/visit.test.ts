@@ -6,7 +6,6 @@ import {
   isBlank,
   newVisit,
   save,
-  savedNameRegionText,
   submit,
 } from './visit'
 import visitSource from './visit.ts?raw'
@@ -121,39 +120,41 @@ describe('Visit', () => {
   })
 
   // -----------------------------------------------------------------------------------------
-  // saved-name issue 01 — the saved name's own rules. Everything the DOM can see is a scenario
-  // in GreetingScreen.test.tsx; only what no scenario can reach lives here (design.md §5.3).
+  // remembered-names issues 01 and 02 — the saved names' own rules. Everything the DOM can see
+  // is a scenario in GreetingScreen.test.tsx; only what no scenario can reach lives here
+  // (design.md §5.3).
   // -----------------------------------------------------------------------------------------
 
-  // INV-10: save is total. No scenario can reach this, because P6 keeps the control absent until
+  // INV-18: save is total. No scenario can reach this, because P17 keeps the control absent until
   // there has been a greeting — the rule exists so that a second caller (or a future control that
-  // forgets the condition) cannot invent a saved name out of nothing.
-  it('does nothing when there is no greeting to save (INV-10)', () => {
+  // forgets the condition) cannot invent a saved name out of nothing. Returned by identity, so a
+  // press that could do nothing is not counted as a write either (INV-21).
+  it('does nothing when there is no greeting to save (INV-18)', () => {
     expect(save(newVisit)).toBe(newVisit)
   })
 
-  // INV-11: every save is a new save, even an identical one. Without the counter the aggregate
-  // cannot tell a second save of the same name from no save at all, the rendered text never
-  // changes, and the live region falls silent on the visitor's second click. jsdom announces
-  // nothing, so the domain half is pinned here and audibility is a human check (VH-02(c)).
-  it('counts every save, so saving the same name again is still a new save (INV-11)', () => {
-    const greeted = submit(newVisit, 'Ada')
-    const once = save(greeted)
-    const twice = save(once)
+  // INV-21: every write to the list is a new event, including a refusal that changes nothing.
+  // Without the revision the aggregate cannot tell a refused save from no save at all, the
+  // rendered text never changes, and the live region falls silent on the visitor's second press.
+  // jsdom announces nothing, so the domain half is pinned here and audibility is a human check
+  // (VH-04(b)). Replaces the single-slot INV-11 assertion, whose "two saves of the same name are
+  // two saves" is now "the second one is refused, and the refusal is still an event".
+  it('counts a refused save as a write of its own, without touching the list (INV-21)', () => {
+    const saved = save(submit(newVisit, 'Ada'))
+    const refused = save(saved)
 
-    expect(savedNameRegionText(twice)).toBe('Saved: Ada') // same text …
-    expect(twice.saveCount).toBe(2) // … different value
+    expect(refused.savedNames).toEqual(saved.savedNames) // the list is untouched …
+    expect(refused.savedNamesRevision).toBe(saved.savedNamesRevision + 1) // … and still an event
   })
 
-  // -----------------------------------------------------------------------------------------
-  // saved-name issue 02 — greeting again. Everything the DOM can see is a scenario in
-  // GreetingScreen.test.tsx; only what no scenario can reach lives here (design.md §5.3).
-  // -----------------------------------------------------------------------------------------
+  // INV-22: greeting again is only ever greeting again as a name that is saved. No scenario can
+  // reach this — a control for an unsaved name is a control that is not on the screen — so the
+  // guard is pinned here. It is what keeps ADR-0020's no-argument guarantee alive now that the
+  // signature has had to grow one: the argument can only ever name a row the visitor can see.
+  // Returned by identity, so a call that could do nothing is not a greeting either (INV-8a).
+  it('does nothing when asked to greet again as a name that is not saved (INV-22)', () => {
+    const greeted = submit(newVisit, 'Bob')
 
-  // INV-12: greeting again is total. No scenario can reach this, because P11 keeps the control
-  // absent until a name is saved — the rule exists so that a second caller (or a future control
-  // that forgets the condition) cannot greet the visitor as nothing at all.
-  it('does nothing when there is no saved name to be greeted as (INV-12)', () => {
-    expect(greetAgain(newVisit)).toBe(newVisit)
+    expect(greetAgain(greeted, 'Ada')).toBe(greeted)
   })
 })

@@ -1,8 +1,30 @@
 /** Fixed alert copy. Human-confirmed and shortened — see VERIFY-WITH-HUMAN.md VH-15. */
 export const ALERT_MESSAGE = 'Please enter your name.'
 
-/** Fixed empty-state copy (seed, Agreed copy). */
-export const NOTHING_SAVED_MESSAGE = 'No name saved yet.'
+/** Fixed empty-state copy (seed, Agreed copy). Plural since the visit holds a list. */
+export const NOTHING_SAVED_MESSAGE = 'No names saved yet.'
+
+/** Fixed refusal copy for a full list (seed, Agreed copy). */
+export const FULL_LIST_MESSAGE = 'Five names is the limit. Remove one to save another.'
+
+/**
+ * INV-17. The most names one visit can hold at once. It lives here, beside the rule that
+ * enforces it, so no component ever holds the number.
+ *
+ * Known coupling, stated rather than engineered away: this five and the word "Five" inside
+ * FULL_LIST_MESSAGE must agree, and nothing enforces it. Interpolating the number was rejected
+ * because the copy is agreed English, not a template (design.md §2.5).
+ */
+export const SAVED_NAMES_LIMIT = 5
+
+/**
+ * INV-20. Why the last save attempt added nothing. Data, never a message: the sentences live in
+ * refusalText alone, so no caller can put words the product never agreed into the visit
+ * (ADR-0027).
+ */
+export type SaveRefusal =
+  | { readonly kind: 'already-saved'; readonly name: string }
+  | { readonly kind: 'full' }
 
 /** In-memory state of one visit. Replaced wholesale; never mutated. */
 export type Visit = {
@@ -15,13 +37,16 @@ export type Visit = {
   /** INV-8b. Blank submissions rejected this visit. Monotonic; same role as greetingCount. */
   readonly blankCount: number
   /**
-   * INV-9. The one name this visit is holding onto; null until the first save. Trimmed and
-   * non-blank when present — it is a value greetedName already held, so it inherits INV-2
-   * rather than re-deriving it.
+   * INV-17. The names this visit is holding onto, oldest first; [] until the first save. No
+   * duplicates, at most SAVED_NAMES_LIMIT, and a name never moves once it is in the list. Each
+   * entry is trimmed and non-blank when present — it is a value greetedName already held, so it
+   * inherits INV-2 rather than re-deriving it.
    */
-  readonly savedName: string | null
-  /** INV-11. Saves performed this visit. Monotonic; identity, not a quantity to display. */
-  readonly saveCount: number
+  readonly savedNames: readonly string[]
+  /** INV-20. Why the most recent save attempt added nothing; null when it added a name. */
+  readonly lastSaveRefusal: SaveRefusal | null
+  /** INV-21. Writes to the list this visit. Monotonic; identity, not a quantity to display. */
+  readonly savedNamesRevision: number
 }
 
 /** The state a fresh visit starts from. */
@@ -30,8 +55,9 @@ export const newVisit: Visit = {
   greetingCount: 0,
   lastSubmissionWasBlank: false,
   blankCount: 0,
-  savedName: null,
-  saveCount: 0,
+  savedNames: [],
+  lastSaveRefusal: null,
+  savedNamesRevision: 0,
 }
 
 /**
@@ -43,8 +69,8 @@ export function isBlank(rawName: string): boolean {
 }
 
 /**
- * The only state transition. Total, pure, synchronous. INV-2, INV-4, INV-5a, INV-8a, INV-8b.
- * Takes the raw string and trims it here, so no caller can bypass the rule.
+ * The only state transition on the greeting. Total, pure, synchronous. INV-2, INV-4, INV-5a,
+ * INV-8a, INV-8b. Takes the raw string and trims it here, so no caller can bypass the rule.
  *
  * Note which counter each branch leaves alone: that asymmetry is the scoping rule (R9). A
  * blank submission renews the alert only, a successful one renews the greeting only, so a
@@ -61,12 +87,85 @@ export function submit(visit: Visit, rawName: string): Visit {
     greetingCount: visit.greetingCount + 1,
     lastSubmissionWasBlank: false,
     blankCount: visit.blankCount,
-    // INV-13: only save() ever writes the saved name or the save count. This branch is an
-    // exhaustive literal, so forgetting to carry them is a compile error rather than a silent
-    // loss on every greeting. The blank branch spreads, so it carries them for free.
-    savedName: visit.savedName,
-    saveCount: visit.saveCount,
+    // INV-23: only withSavedNames ever writes the three list fields. This branch is an
+    // exhaustive literal, so forgetting to carry one is a compile error rather than a silent
+    // loss on every greeting — a blank submission never touching the list, and a greeting never
+    // re-announcing the region, both follow from here. The blank branch spreads, so it carries
+    // them for free.
+    savedNames: visit.savedNames,
+    lastSaveRefusal: visit.lastSaveRefusal,
+    savedNamesRevision: visit.savedNamesRevision,
   }
+}
+
+/**
+ * INV-20, INV-21. The only writer of savedNames, lastSaveRefusal and savedNamesRevision — module
+ * private on purpose, so the three can never disagree.
+ *
+ * It takes the new list and the new refusal in one call, which makes a list write without a
+ * refusal decision unrepresentable: "clear the message too" is not something save and remove
+ * each have to remember (ADR-0027). Every call is a new event, including a refusal that changed
+ * nothing — that is what keeps the region from falling silent when the visitor presses Save
+ * twice (ADR-0030). Commands that could not do anything return their input by identity and never
+ * reach this function, so a press with no possible effect is not counted.
+ */
+function withSavedNames(
+  visit: Visit,
+  savedNames: readonly string[],
+  refusal: SaveRefusal | null,
+): Visit {
+  return {
+    ...visit,
+    savedNames,
+    lastSaveRefusal: refusal,
+    savedNamesRevision: visit.savedNamesRevision + 1,
+  }
+}
+
+/**
+ * INV-17, INV-18, INV-20, INV-21. Appends the name the visitor is currently greeted as, or
+ * refuses and says why.
+ *
+ * It takes no name argument, and that absence is the guarantee: the greeting is the only possible
+ * source, so no caller can save a name the visitor was never greeted as (ADR-0020). Total — with
+ * no greeting there is nothing to save and the visit is returned unchanged.
+ *
+ * The two refusals arrive with the append rather than a slice later, because a live save with one
+ * branch missing would let a visitor keep two identical rows or six names in a list whose whole
+ * point is that it holds five (ADR-0007). Already-saved is checked first: when the list is full
+ * *and* the name is in it, telling the visitor to remove one would send them to make room for a
+ * name that is already there (ADR-0027; human check VH-03).
+ */
+export function save(visit: Visit): Visit {
+  const name = visit.greetedName
+  if (name === null) return visit
+  if (visit.savedNames.includes(name)) {
+    return withSavedNames(visit, visit.savedNames, { kind: 'already-saved', name })
+  }
+  if (visit.savedNames.length >= SAVED_NAMES_LIMIT) {
+    return withSavedNames(visit, visit.savedNames, { kind: 'full' })
+  }
+  return withSavedNames(visit, [...visit.savedNames, name], null)
+}
+
+/**
+ * INV-22. Greeting again is an ordinary greeting, as any name the visit is holding onto: the one
+ * submission transition, with a saved name where the Name field's draft would be.
+ *
+ * The body delegates and does nothing else, so every consequence of a greeting is inherited
+ * rather than restated here — the status region is renewed even when the name is unchanged, a
+ * standing blank-name alert clears, the visitor's draft is untouched, and INV-23 carries the
+ * saved names through, so greeting again can neither re-save nor re-announce the list.
+ *
+ * The membership guard is what survives of ADR-0020's no-argument guarantee now that the
+ * signature has had to grow one (ADR-0029): the only names this will greet are names the visitor
+ * chose to save, so no caller can smuggle in a name that was never greeted. Entries are non-blank
+ * by INV-17 and INV-2, so submit always takes its non-blank branch — "greeting again clears a
+ * standing alert" needs no rule of its own. Total: an unsaved name returns the visit unchanged.
+ */
+export function greetAgain(visit: Visit, name: string): Visit {
+  if (!visit.savedNames.includes(name)) return visit
+  return submit(visit, name)
 }
 
 /** INV-3. '' when there is no greeting yet — the status region is always rendered (P1). */
@@ -80,47 +179,26 @@ export function alertText(visit: Visit): string | null {
 }
 
 /**
- * INV-9, INV-10, INV-11. Captures the name the visitor is currently greeted as.
- *
- * It takes no name argument, and that absence is the guarantee: the greeting is the only possible
- * source, so no caller can save a name the visitor was never greeted as (ADR-0020). Total — with
- * no greeting there is nothing to save and the visit is returned unchanged. Replacing is not a
- * second code path: the slot is a scalar, so a save with something already in it overwrites.
- * Deliberately not value-idempotent — saveCount advances on every real save, which is what makes
- * saving the same name twice audible instead of silent (INV-11).
+ * INV-25. The one place the `Saved: ` phrasing and its `, ` separator exist, so the reminder at
+ * the Name field can never name a different set of names, in a different order, from the rows.
+ * null when nothing is saved. Its one-name case is the single slot's own sentence, unchanged.
  */
-export function save(visit: Visit): Visit {
-  if (visit.greetedName === null) return visit
-  return { ...visit, savedName: visit.greetedName, saveCount: visit.saveCount + 1 }
+export function savedNamesHintText(visit: Visit): string | null {
+  return visit.savedNames.length === 0 ? null : `Saved: ${visit.savedNames.join(', ')}`
 }
 
 /**
- * INV-12. Greeting again is the same greeting: the one existing transition with the saved name
- * substituted for the field's draft. The body delegates to submit and does nothing else, so
- * re-announcement, the cleared alert, the untouched draft and the advanced greeting count are
- * inherited rather than restated (ADR-0021). A second transition here would be a second, subtly
- * different notion of what a greeting is — and would leave a stale alert standing beneath a
- * fresh greeting. Total: with nothing saved there is nobody to be greeted as, and the visit is
- * returned unchanged. savedName is non-blank by INV-9, so submit always takes its non-blank
- * branch and greeting again can never be rejected as a blank submission.
+ * INV-26. The one place either refusal sentence exists; null when the last save attempt was not
+ * refused. A switch with no default branch, so a third refusal kind added later is a compile
+ * error rather than a silent null the visitor would experience as a button doing nothing.
  */
-export function greetAgain(visit: Visit): Visit {
-  if (visit.savedName === null) return visit
-  return submit(visit, visit.savedName)
-}
-
-/**
- * INV-15. The one place the `Saved: ` phrasing exists, so the region and the hint that both show
- * the saved name cannot drift apart. null when nothing is saved.
- */
-export function savedNameText(visit: Visit): string | null {
-  return visit.savedName === null ? null : `Saved: ${visit.savedName}`
-}
-
-/**
- * INV-16. The Saved name region's words. Total, because the region is always rendered (P7): it
- * owns the empty-state decision so that no component ever types either string.
- */
-export function savedNameRegionText(visit: Visit): string {
-  return savedNameText(visit) ?? NOTHING_SAVED_MESSAGE
+export function refusalText(visit: Visit): string | null {
+  const refusal = visit.lastSaveRefusal
+  if (refusal === null) return null
+  switch (refusal.kind) {
+    case 'already-saved':
+      return `${refusal.name} is already saved.`
+    case 'full':
+      return FULL_LIST_MESSAGE
+  }
 }
