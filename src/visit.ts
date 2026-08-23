@@ -148,6 +148,26 @@ export function save(visit: Visit): Visit {
   return withSavedNames(visit, [...visit.savedNames, name], null)
 }
 
+/**
+ * INV-22. Greeting again is an ordinary greeting, as any name the visit is holding onto: the one
+ * submission transition, with a saved name where the Name field's draft would be.
+ *
+ * The body delegates and does nothing else, so every consequence of a greeting is inherited
+ * rather than restated here — the status region is renewed even when the name is unchanged, a
+ * standing blank-name alert clears, the visitor's draft is untouched, and INV-23 carries the
+ * saved names through, so greeting again can neither re-save nor re-announce the list.
+ *
+ * The membership guard is what survives of ADR-0020's no-argument guarantee now that the
+ * signature has had to grow one (ADR-0029): the only names this will greet are names the visitor
+ * chose to save, so no caller can smuggle in a name that was never greeted. Entries are non-blank
+ * by INV-17 and INV-2, so submit always takes its non-blank branch — "greeting again clears a
+ * standing alert" needs no rule of its own. Total: an unsaved name returns the visit unchanged.
+ */
+export function greetAgain(visit: Visit, name: string): Visit {
+  if (!visit.savedNames.includes(name)) return visit
+  return submit(visit, name)
+}
+
 /** INV-3. '' when there is no greeting yet — the status region is always rendered (P1). */
 export function greetingText(visit: Visit): string {
   return visit.greetedName === null ? '' : `Hello, ${visit.greetedName}`

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import {
   alertText,
+  greetAgain,
   greetingText,
   newVisit,
   NOTHING_SAVED_MESSAGE,
@@ -130,10 +131,26 @@ export function GreetingScreen() {
         ) : (
           <ul>
             {visit.savedNames.map((name) => (
-              // A row is name text only for now. Its two controls — "Greet me again as <name>"
-              // and "Remove <name>" — are issues 02 and 03, and P16 gives the order they arrive
-              // in (issue 01, Story).
-              <li key={name}>{name}</li>
+              // P16: the row's own name first, then the controls that act on it. Its second
+              // control — "Remove <name>" — is issue 03, and it goes last, after this one.
+              <li key={name}>
+                <span>{name}</span>
+                {/* P16, P12: a way back to this name without retyping it. The control carries
+                    the row's name, which reverses the single slot's fixed-name rule and is
+                    meant to (seed, Decisions): a row's control acts on one name for as long as
+                    the row exists, so it cannot drift, while five buttons all announcing "Greet
+                    me again" would be indistinguishable to anyone not looking at the screen.
+                    type="button" and outside the <form>, so activating it greets as this name
+                    and never submits the visitor's draft; and no control sits inside a keyed
+                    node, so React reuses this DOM node and the visitor's focus survives its own
+                    click (P19: greeting again moves focus nowhere). */}
+                <button
+                  type="button"
+                  onClick={() => setVisit((current) => greetAgain(current, name))}
+                >
+                  Greet me again as {name}
+                </button>
+              </li>
             ))}
           </ul>
         )}

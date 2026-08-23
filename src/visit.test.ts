@@ -1,6 +1,7 @@
 import {
   ALERT_MESSAGE,
   alertText,
+  greetAgain,
   greetingText,
   isBlank,
   newVisit,
@@ -119,9 +120,9 @@ describe('Visit', () => {
   })
 
   // -----------------------------------------------------------------------------------------
-  // remembered-names issue 01 — the saved names' own rules. Everything the DOM can see is a
-  // scenario in GreetingScreen.test.tsx; only what no scenario can reach lives here
-  // (design.md §5.3). This feature adds exactly two assertions to this file.
+  // remembered-names issues 01 and 02 — the saved names' own rules. Everything the DOM can see
+  // is a scenario in GreetingScreen.test.tsx; only what no scenario can reach lives here
+  // (design.md §5.3).
   // -----------------------------------------------------------------------------------------
 
   // INV-18: save is total. No scenario can reach this, because P17 keeps the control absent until
@@ -144,5 +145,16 @@ describe('Visit', () => {
 
     expect(refused.savedNames).toEqual(saved.savedNames) // the list is untouched …
     expect(refused.savedNamesRevision).toBe(saved.savedNamesRevision + 1) // … and still an event
+  })
+
+  // INV-22: greeting again is only ever greeting again as a name that is saved. No scenario can
+  // reach this — a control for an unsaved name is a control that is not on the screen — so the
+  // guard is pinned here. It is what keeps ADR-0020's no-argument guarantee alive now that the
+  // signature has had to grow one: the argument can only ever name a row the visitor can see.
+  // Returned by identity, so a call that could do nothing is not a greeting either (INV-8a).
+  it('does nothing when asked to greet again as a name that is not saved (INV-22)', () => {
+    const greeted = submit(newVisit, 'Bob')
+
+    expect(greetAgain(greeted, 'Ada')).toBe(greeted)
   })
 })
