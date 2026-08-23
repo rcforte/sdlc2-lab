@@ -6,6 +6,7 @@ import {
   newVisit,
   save,
   savedNameRegionText,
+  savedNameText,
   submit,
   type Visit,
 } from './visit'
@@ -13,6 +14,7 @@ import {
 const NAME_FIELD_ID = 'name'
 const ALERT_ID = 'name-error'
 const SAVED_NAME_HEADING_ID = 'saved-name-heading'
+const SAVED_NAME_HINT_ID = 'saved-name-hint'
 
 export function GreetingScreen() {
   // Two component-local hooks, both dying at unmount: the visitor's draft (INV-6c) and the
@@ -30,9 +32,24 @@ export function GreetingScreen() {
   }
 
   // The domain decides whether there is a message and what it says (INV-5b); this component
-  // decides only whether an element exists (P2) and what it is linked to (P3). Both read this
+  // decides only whether an element exists (P2) and what it is linked to (P10). Both read this
   // one expression, so they cannot disagree.
   const alert = alertText(visit)
+
+  // The saved name as words, or null when there is nothing saved (INV-15). The hint element's
+  // existence (P9) and the field's description (P10) both read this one expression, so the
+  // element and the reference to it cannot disagree.
+  const savedNameHint = savedNameText(visit)
+
+  // P10 (supersedes P3): everything describing the field, in the order it is read. The error
+  // about the submission just made outranks a standing piece of context, so the alert's id comes
+  // first; ids of elements that are not on screen never join the list.
+  const fieldDescription = [
+    alert !== null ? ALERT_ID : null,
+    savedNameHint !== null ? SAVED_NAME_HINT_ID : null,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(' ')
 
   return (
     <>
@@ -48,9 +65,10 @@ export function GreetingScreen() {
             type="text"
             value={rawName}
             onChange={(event) => setRawName(event.target.value)}
-            // P3: undefined removes the attribute entirely rather than emptying it, so the field
-            // is never described by an alert that is not on screen.
-            aria-describedby={alert !== null ? ALERT_ID : undefined}
+            // undefined removes the attribute entirely rather than emptying it, so the field is
+            // never described by an element that is not on screen — and an empty
+            // aria-describedby would itself be a dangling reference.
+            aria-describedby={fieldDescription === '' ? undefined : fieldDescription}
           />
           {/* P2: the alert exists only while there is an error — unlike the status region, it is
               absent from the DOM otherwise. It sits beside the field it describes, and carries its
@@ -64,6 +82,11 @@ export function GreetingScreen() {
               <span key={visit.blankCount}>{alert}</span>
             </p>
           )}
+          {/* P9: the reminder of the saved name, beside the field where the retyping would
+              otherwise happen. Visible text — never an aria-label or a visually-hidden node —
+              because a sighted visitor is meant to read it too, and never a placeholder, which
+              would vanish on the first keystroke and fight the field's own content. */}
+          {savedNameHint !== null && <p id={SAVED_NAME_HINT_ID}>{savedNameHint}</p>}
         </div>
         <button type="submit">Greet me</button>
       </form>

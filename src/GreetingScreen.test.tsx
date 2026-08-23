@@ -529,6 +529,21 @@ describe('Greeting screen', () => {
     )
   }
 
+  // The elements the field is described by, in the order the description is read — the order of
+  // the ids in aria-describedby. A dangling id is a description a visitor never receives, so it
+  // throws here rather than quietly shortening the list.
+  const describedBy = (field: HTMLElement): HTMLElement[] =>
+    (field.getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .filter(Boolean)
+      .map((id) => {
+        const element = document.getElementById(id)
+        if (element === null) {
+          throw new Error(`aria-describedby names "${id}", which is not in the document`)
+        }
+        return element
+      })
+
   it('saves the name the visitor was just greeted as', async () => {
     const user = userEvent.setup()
 
@@ -777,7 +792,16 @@ describe('Greeting screen', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     // …and the field carries no stale reference to the alert that is gone, so greeting again
     // leaves the same clean field an ordinary successful greeting does.
-    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+    //
+    // Resolved when slice 03 was merged in: this asserted `not.toHaveAttribute` while the hint
+    // did not exist yet, and slice 03 made the field described whenever a name is saved. The
+    // step's meaning is unchanged — no reference to the alert survives it — but "clean" now
+    // means described by the hint alone. describedBy() throws on an id that names no element,
+    // so a leftover reference to the removed alert fails here instead of quietly shortening the
+    // description to the same string.
+    const field = screen.getByRole('textbox', { name: 'Name' })
+    expect(field).toHaveAccessibleDescription('Saved: Ada')
+    expect(describedBy(field)).toHaveLength(1)
   })
 
   // Outcomes never write to the Name field — the rule greet-visitor established and this feature
@@ -851,5 +875,123 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
     // And the Name field still contains "Grace"
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // saved-name issue 03 — Be reminded of the saved name at the Name field. One acceptance test
+  // per Gherkin scenario, driven through the declared frontend seam (RTL + user-event via
+  // Vitest/jsdom).
+  //
+  // The hint is asserted through the field's *accessible description*, not by text: the Saved
+  // name region shows the same "Saved: Ada" string (they are one fact shown twice), so a
+  // page-wide by-text query would match two nodes and prove nothing about the field.
+  // ---------------------------------------------------------------------------------------
+
+  it('leaves the Name field undescribed while nothing is saved', () => {
+    // Given the visitor is on the greeting screen
+    render(<GreetingScreen />)
+    // And the visitor has not saved a name
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+
+    // Then the Name field has no accessible description
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
+    // …and the attribute is absent rather than empty: an empty aria-describedby is a dangling
+    // reference, which is not the same thing as having nothing to say.
+    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('describes the Name field with the saved name once a name is saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has been greeted "Hello, Ada" and has saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // Then the Name field has the accessible description "Saved: Ada"
+    const field = screen.getByRole('textbox', { name: 'Name' })
+    expect(field).toHaveAccessibleDescription('Saved: Ada')
+    // And the element the Name field is described by is visible — reached through the
+    // association rather than by its text, because the Saved name region reads "Saved: Ada"
+    // too. A visually-hidden node would satisfy the description above and show a sighted
+    // visitor nothing; the seed asks for visible text that is *also* associated.
+    const described = describedBy(field)
+    expect(described).toHaveLength(1)
+    expect(described[0]).toBeVisible()
+  })
+
+  // The scenario that fails any implementation sourcing the hint from the Name field instead of
+  // from the saved name: the draft and the saved name deliberately disagree here.
+  it('keeps the hint at the Name field while the visitor is mid-draft', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // When the visitor types "Grace" into the Name field without submitting — the field holds
+    // "Ada" from the greeting above, so it is cleared first.
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+    // …and nothing was submitted: the greeting is still the one that was saved.
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // Then the Name field still has the accessible description "Saved: Ada"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Ada')
+  })
+
+  it('updates the hint when the saved name is replaced', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // And the visitor has since been greeted "Hello, Grace" — being greeted is not saving, so
+    // the hint still reads the saved name and not the name on screen. This step is what fails an
+    // implementation that shows the greeting at the field instead of the saved name.
+    await beGreeted(user, 'Grace')
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Ada')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Name field has the accessible description "Saved: Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Grace',
+    )
+  })
+
+  // Both describe the same field at once, so the order they are read in is a decision, not an
+  // accident: the error about the submission just made outranks a standing piece of context.
+  // Under this seam that ordering is one observation — the field's accessible description is the
+  // two texts joined, in the order aria-describedby names them.
+  it('describes the Name field with the alert before the hint when both are present', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada"
+    render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+
+    // When the visitor clears the Name field
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then the Name field's accessible description reads "Please enter your name. Saved: Ada"
+    const field = screen.getByRole('textbox', { name: 'Name' })
+    expect(field).toHaveAccessibleDescription(`${ALERT_TEXT} Saved: Ada`)
+    // …and both described elements really are on screen, the alert first: the description above
+    // is computed from the ids, so this is what stops it reading right for the wrong reason.
+    const described = describedBy(field)
+    expect(described).toHaveLength(2)
+    expect(described[0]).toBe(screen.getByRole('alert'))
+    expect(described[1]).toBeVisible()
   })
 })
