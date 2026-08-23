@@ -61,6 +61,32 @@ tree. jsdom implements no live-region announcement at all, and whether a mutatio
 `aria-hidden` subtree of a polite region stays silent — and whether `aria-label` on a non-interactive
 `<li>` is read at all — is each screen reader's own behaviour, not this codebase's.
 
+**Narrowed once more, by a real browser.** The app was driven in Chromium via Playwright and watched
+with a `MutationObserver` on the Saved names region across a real minute boundary — 74 seconds, about
+five ticks, the reading moving from *saved 2 minutes ago* to *saved 3 minutes ago* on its own. In that
+window the region saw **exactly one content mutation: a single `characterData` change on the span
+inside the `aria-hidden` subtree.** The row's accessible name did not move, and Chromium computed that
+name as `Ada, saved at 18:47` — the ticking words are not in it, so the browser honours `aria-hidden`
+in the one computation observable from outside.
+
+Two things this settled that no unit test could:
+
+- **The tick genuinely runs in a browser.** Every suite assertion about it rides on a faked
+  `setInterval`; this is the first evidence the real one fires and the reading moves unprompted.
+- **The four ticks that did not cross a boundary mutated nothing at all.** React writes only when the
+  string changes, so for most ticks there is no DOM write of any kind for a screen reader to have an
+  opinion about.
+
+One thing seen and dismissed, recorded so nobody re-chases it: Chromium itself adds an empty `name`
+attribute to the sort checkbox and rewrites `type` with its existing value, a handful of times,
+self-reverting and byte-identical in `outerHTML`. That is the browser's form-control probing, not this
+app — nothing here ever sets `name` — and attribute changes fall outside a live region's default
+`aria-relevant` anyway.
+
+The residual risk is now one question, and it is about screen-reader conformance rather than about
+this code: **does a reader re-read a polite region when the only thing that changed is character data
+inside an `aria-hidden` descendant?**
+
 **Confirm, with a real screen reader:** sit on the screen with two or three saved names for several
 minutes and (a) hear **nothing** while the readings count up; (b) hear the row's name and its stable
 time when moving through the list; (c) hear the `Newest` marker; (d) still hear the region when a name

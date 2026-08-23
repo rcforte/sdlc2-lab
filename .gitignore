@@ -9,3 +9,8 @@ dist/
 # requires to be empty. Measured: one isolated agent takes the tree from clean to `?? .claude/`.
 .sdlc2/worktrees/
 .claude/worktrees/
+
+# Playwright MCP writes snapshots and console logs here when the app is driven in a real browser
+# (the VH-02 accessibility pass). Same problem as the worktrees above: un-ignored it shows up in
+# `git status --porcelain`, which sdlc2 pre-check 1 requires to be empty.
+.playwright-mcp/
