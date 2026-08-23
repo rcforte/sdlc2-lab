@@ -24,6 +24,11 @@ const SAVED_NAMES_REGION = 'Saved names'
 const NOTHING_SAVED_TEXT = 'No names saved yet.'
 const SAVE_CONTROL = 'Save this name'
 
+// Issue 05's refusal copy, copied from its Gherkin for the same reason: a scenario that imported
+// FULL_LIST_MESSAGE would pass whatever that constant happened to say, including a sentence
+// naming a number the list does not actually stop at.
+const FULL_LIST_TEXT = 'Five names is the limit. Remove one to save another.'
+
 describe('Greeting screen', () => {
   it('shows a status region that is present and empty before the first submission', () => {
     // Given the visitor is on the greeting screen
@@ -914,6 +919,210 @@ describe('Greeting screen', () => {
     expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
     // And the Name field still contains "Grace"
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+  })
+
+  // ---------------------------------------------------------------------------------------
+  // Saving while the list is full is refused, and removing is the way out (issue 05). One
+  // acceptance test per Gherkin scenario, driven through the declared frontend seam.
+  //
+  // A guard block (design.md §5.1, ADR-0007): the whole save command — the append and both
+  // refusals, each with the words the visitor reads — arrived with issue 01, because a live save
+  // missing its limit branch would let a visitor put six names into a list whose whole point is
+  // that it holds five, and a rule that refuses in silence is the failure this codebase has now
+  // designed against three times. These scenarios therefore pass on their first run by design.
+  // Nothing here was loosened to obtain a red bar; if one of them ever goes red the fix is the
+  // implementation, never the scenario.
+  //
+  // They are not tautologies. Each kills a named wrong implementation, and every one of those
+  // passes the whole of the rest of this file: a limit that drops the oldest name to make room;
+  // a limit that refuses in silence; one that hides — or disables — the save control instead of
+  // explaining itself; one off by one at the fifth name; and one counted from a running total of
+  // saves that removal never gives back.
+  //
+  // The refusal is asserted inside the Saved names region and nowhere else: that is what makes
+  // it announced (P14), and it keeps a message about the list out of the description of what the
+  // visitor typed (seed, Decisions). Whether it is actually spoken is a human check
+  // (VERIFY-WITH-HUMAN.md VH-04(c)).
+  // ---------------------------------------------------------------------------------------
+
+  // Given the visitor has saved five names: "Ada", "Bob", "Cleo", "Deb" and "Eve"
+  // And the visitor has been greeted "Hello, Fay"
+  //
+  // The five names are written out, never counted up to SAVED_NAMES_LIMIT: a Given that read the
+  // limit from the domain would fill the list to whatever the limit happened to become, and then
+  // agree with it. Both halves assert the state they claim to set up really arrived —
+  // saveNamesInOrder counts the rows, beGreeted reads the status region — so no scenario below
+  // can pass from a Given that silently did not happen. Fay is greeted and deliberately not
+  // saved: that is exactly the state a sixth save is attempted from.
+  const haveAFullListAndBeGreetedAsASixthName = async (user: UserEvent) => {
+    await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo', 'Deb', 'Eve')
+    await beGreeted(user, 'Fay')
+  }
+
+  it('refuses to save a sixth name, and says why', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved five names: "Ada", "Bob", "Cleo", "Deb" and "Eve"
+    // And the visitor has been greeted "Hello, Fay"
+    render(<GreetingScreen />)
+    await haveAFullListAndBeGreetedAsASixthName(user)
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region reads "Five names is the limit. Remove one to save another."
+    const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+    expect(region).toHaveTextContent(FULL_LIST_TEXT)
+    // …as an element of the region's own, which is the polite live region meant to announce it.
+    expect(within(region).getByText(FULL_LIST_TEXT)).toBeVisible()
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    // …and never at the Name field: the refusal is about the list, so describing the field with
+    // it would answer "what is wrong with what I typed?" with a sentence about something else.
+    // The field's description is still the saved names and nothing more.
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob, Cleo, Deb, Eve',
+    )
+
+    // And the Saved names region still contains exactly the rows "Ada", "Bob", "Cleo", "Deb"
+    // and "Eve", in that order
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(5)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Bob')
+    expect(rows[2]).toHaveTextContent('Cleo')
+    expect(rows[3]).toHaveTextContent('Deb')
+    expect(rows[4]).toHaveTextContent('Eve')
+    // "exactly" — the refused name left no trace of itself in the list. Asserted by the control
+    // only a row for Fay could ever have carried, because a row's text is its name run together
+    // with its own controls' names and so cannot be matched whole (design.md §5.4).
+    expect(screen.queryByRole('button', { name: 'Remove Fay' })).toBeNull()
+  })
+
+  // The tempting alternative the seed rejects outright: make room by dropping the oldest name.
+  // It passes every other scenario in this block — the list still holds five rows, the save
+  // still appears to work — and the visitor discovers it only by missing a name they had
+  // deliberately kept, which would undo the premise of the whole feature to make room for one
+  // more name.
+  it('does not drop the oldest saved name to make room for the refused one', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved five names: "Ada", "Bob", "Cleo", "Deb" and "Eve"
+    // And the visitor has been greeted "Hello, Fay"
+    render(<GreetingScreen />)
+    await haveAFullListAndBeGreetedAsASixthName(user)
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then a row for "Ada" is still present — the oldest name, the one a make-room rule takes
+    // first, still at the head of the list and still carrying the control that acts on it.
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(5)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(within(rows[0]).getByRole('button', { name: 'Remove Ada' })).toBeVisible()
+    // …and Ada is still named at the Name field, the list's other home on this screen: a name
+    // dropped from the list would have gone from both places at once.
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob, Cleo, Deb, Eve',
+    )
+  })
+
+  // A control with nothing to do right now still has something to teach. Hiding it would follow
+  // this screen's own rule for the save control before a greeting, but the button would then
+  // vanish mid-visit with no explanation and no way to learn that removing brings it back — the
+  // refusal teaches the limit, a missing button teaches nothing (seed, Decisions). Disabling it
+  // is the same failure in another shape: an unfocusable control that explains nothing. So the
+  // assertion is present *and* enabled.
+  it('keeps the save control on screen while the list is full', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved five names: "Ada", "Bob", "Cleo", "Deb" and "Eve"
+    // And the visitor has been greeted "Hello, Fay"
+    render(<GreetingScreen />)
+    await haveAFullListAndBeGreetedAsASixthName(user)
+
+    // Then a button named "Save this name" is present
+    const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+    const saveControl = within(region).getByRole('button', { name: SAVE_CONTROL })
+    expect(saveControl).toBeVisible()
+    expect(saveControl).toBeEnabled()
+  })
+
+  // The refusal names its own way out, so the way out has to work: this is the pair of steps the
+  // sentence "Remove one to save another" promises, run end to end. It fails a limit computed
+  // from a running total of saves — a counter removal never gives back would strand the visitor
+  // at a refusal with a list they can see is not full — and it fails a refusal that outlives the
+  // list state it described.
+  it('frees the slot the limit refusal pointed at when a name is removed', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved five names: "Ada", "Bob", "Cleo", "Deb" and "Eve"
+    // And the visitor has been greeted "Hello, Fay"
+    render(<GreetingScreen />)
+    await haveAFullListAndBeGreetedAsASixthName(user)
+    // …and the save was refused with "Five names is the limit. Remove one to save another."
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+      FULL_LIST_TEXT,
+    )
+
+    // When the visitor activates "Remove Bob"
+    await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+    // …and the instruction goes the moment it is followed. The region announces itself on a
+    // removal, so a refusal still standing here would be read out again — telling the visitor to
+    // remove a name they have just removed, about a list that is no longer full.
+    expect(screen.queryByText(FULL_LIST_TEXT)).toBeNull()
+    // And the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region contains rows for "Ada", "Cleo", "Deb", "Eve" and "Fay", in
+    // that order — the freed slot is the one at the end of the list, because a saved name is
+    // appended and never slotted into the gap another name left.
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(5)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Cleo')
+    expect(rows[2]).toHaveTextContent('Deb')
+    expect(rows[3]).toHaveTextContent('Eve')
+    expect(rows[4]).toHaveTextContent('Fay')
+    // …and the sentence that sent the visitor to remove a name is gone, page-wide: an
+    // instruction still on screen after it has been followed describes a list that no longer
+    // exists, and would read as a second refusal.
+    expect(screen.queryByText(FULL_LIST_TEXT)).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Cleo, Deb, Eve, Fay',
+    )
+  })
+
+  // The boundary the limit is easiest to get wrong at. This fails a rule that refuses at four
+  // names exactly as the sixth-name scenario fails one that refuses at six, and between the two
+  // of them the list holds five and no other number.
+  it('saves a fifth name without any talk of the limit', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved four names: "Ada", "Bob", "Cleo" and "Deb"
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo', 'Deb')
+    // And the visitor has been greeted "Hello, Eve"
+    await beGreeted(user, 'Eve')
+
+    // When the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region contains a row for "Eve"
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(5)
+    expect(rows[4]).toHaveTextContent('Eve')
+    expect(within(rows[4]).getByRole('button', { name: 'Remove Eve' })).toBeVisible()
+    // And no text "Five names is the limit. Remove one to save another." is present — asserted
+    // page-wide rather than inside the region, so a refusal shown anywhere at all, including at
+    // the Name field, fails here.
+    expect(screen.queryByText(FULL_LIST_TEXT)).toBeNull()
+    // …and the fifth name really did join the list rather than merely draw a row: the Name field
+    // names all five.
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob, Cleo, Deb, Eve',
+    )
   })
 
   // ---------------------------------------------------------------------------------------
