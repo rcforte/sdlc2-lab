@@ -28,6 +28,13 @@ adding signal.
 
 <!-- sdlc2:config -->
 ```yaml
+# The stack this project actually uses. sdlc2 carries no house stack of its own as of 0.1.6:
+# the developer writes what this line says, and the code reviewer judges idiom against it.
+# Leaving it out is not neutral — the personas are then told it is undeclared and left to infer
+# it from the code. [E2-02]
+stack:  "TypeScript 5, React 19, Vite; Vitest + React Testing Library + user-event (jsdom)"
+# Max slices built at once. Only takes effect when commands.install is set. Default 4. [E2-10]
+lanes:  4
 commands:
   test:    "npm test -- --run"
   build:   "npm run build"
