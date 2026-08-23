@@ -2,6 +2,12 @@
 
 - **Status:** **Accepted** (2026-08-23, at the human VERIFY gate). The code exists and is merged
   to `main`; the suite is green at 61 tests.
+- **Amended by:** **ADR-0034**, which gives `save` its first argument — the clock reading a saved
+  name is stamped with. This record's *title* still holds exactly as written: there is still no
+  **name** argument, and the greeting is still the only possible source of a saved name. What no
+  longer holds is the broader reading, that `save`'s emptiness is itself the guarantee. The
+  signature is no longer empty, so the guarantee now rests on *what* the argument is — a time,
+  which cannot name anybody. A reader arriving here first should read ADR-0034 next.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.4 INV-9/INV-10, §4.1)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

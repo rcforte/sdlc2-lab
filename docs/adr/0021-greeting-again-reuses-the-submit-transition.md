@@ -2,6 +2,13 @@
 
 - **Status:** **Accepted** (2026-08-23, at the human VERIFY gate). The code exists and is merged
   to `main`; the suite is green at 61 tests.
+- **Amended by:** **ADR-0029**, which gives `greetAgain` a name argument. This record's decisive
+  property was that the command took **no** argument, so no caller could greet as a name that was
+  never saved. With five saved names the command has to be told which one, so that guarantee is
+  replaced by a membership guard inside the command: it greets only names already in the list. The
+  rest of this record stands — greeting again is still the existing `submit` transition and nothing
+  else, which is why every consequence of a greeting is still inherited rather than restated. A
+  reader arriving here first should read ADR-0029 next.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.4 INV-12, §3, §4.1)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

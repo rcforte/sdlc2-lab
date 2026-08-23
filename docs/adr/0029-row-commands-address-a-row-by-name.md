@@ -4,6 +4,14 @@
 - **Date:** 2026-08-23
 - **Feature:** `remembered-names` (`.sdlc2/features/remembered-names/design.md` §2.4 INV-19/INV-22, §4.1, §2.2)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)
+- **Amended by:** **ADR-0035**, which gives a saved name a second field — when it was saved. Two
+  claims in this record do not survive that: the heading's *rows are values, not entities*, and the
+  seed phrase quoted below, *a saved name is an identity, not an event*. Both were true while a
+  saved name was nothing but its text. A row is now an identity that **records one event**, with
+  equality deliberately ignoring it. Everything else here stands unchanged and is load-bearing:
+  identity is still the name alone, `remove` and `greetAgain` still take a plain name, and
+  `key={name}` still keeps an untouched row's DOM node and its focus where they were. A reader
+  arriving here first should read ADR-0035 next.
 - **Amends:** **ADR-0021**, whose decisive property was that `greetAgain(visit)` took **no
   argument**, so no caller could greet as a name that was never saved. With five saved names the
   command must be told which one, so the signature grows; this record replaces the guarantee the

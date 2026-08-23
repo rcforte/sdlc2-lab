@@ -4,6 +4,12 @@
   and the testable half is asserted. **The audible half is still open as VH-02** and needs a real
   screen reader. "Every save is perceivable" is therefore a claim this repo has verified for
   sighted visitors only.
+- **Superseded in part by:** **ADR-0030**, which replaces this record's *mechanism* — a save
+  counter plus a keyed child wrapping the region's whole text — with one that keys on a revision of
+  the list. Only the mechanism is superseded. This record's **requirement** — *a save that appears
+  to do nothing must not be silent* — is not: ADR-0030 keeps it and widens it to refusals and
+  removals. The caveat in the Status line above travels with it, and is still open. A reader
+  arriving here first should read ADR-0030 next.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` R15, §2.4 INV-11/P8, §5.4)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

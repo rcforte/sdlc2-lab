@@ -2,6 +2,11 @@
 
 - **Status:** **Accepted** (2026-08-23, at the human VERIFY gate). The code exists and is merged
   to `main`; the suite is green at 61 tests.
+- **Superseded in part by:** **ADR-0026**, which replaces the single scalar slot decided here with
+  an ordered list of up to five. Only the *shape* is superseded. This record's **boundary** argument
+  — that the saved name belongs inside the `Visit` consistency boundary rather than in a second
+  aggregate — is not: ADR-0026 re-runs it with a list and reaches the same answer for the same
+  reasons. A reader arriving here first should read ADR-0026 next.
 - **Date:** 2026-08-22
 - **Feature:** `saved-name` (`.sdlc2/features/saved-name/design.md` §2.3, §2.4 INV-9/INV-11/INV-14)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)
