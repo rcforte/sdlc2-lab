@@ -148,6 +148,29 @@ export function save(visit: Visit): Visit {
   return withSavedNames(visit, [...visit.savedNames, name], null)
 }
 
+/**
+ * INV-19, INV-20, INV-21. Takes exactly the named entry out of the list and leaves every other
+ * name where it was.
+ *
+ * Order is preserved because filter preserves it, not because a second rule says so, and "exactly
+ * one" follows from the list holding no duplicates (INV-17) rather than from a count. Total — a
+ * name that is not saved is not an error, it is nothing to do, so the visit is returned unchanged
+ * and the write is not counted as an event.
+ *
+ * It cannot break the list's shape: a filter cannot add a name, duplicate one, or reorder the
+ * rest, which is why INV-17 still has save as its single owner. It cannot touch the greeting
+ * either — the greeting is not one of the fields withSavedNames writes — so "removing does not
+ * change who the visitor is greeted as" needs no rule of its own.
+ */
+export function remove(visit: Visit, name: string): Visit {
+  if (!visit.savedNames.includes(name)) return visit
+  return withSavedNames(
+    visit,
+    visit.savedNames.filter((saved) => saved !== name),
+    null,
+  )
+}
+
 /** INV-3. '' when there is no greeting yet — the status region is always rendered (P1). */
 export function greetingText(visit: Visit): string {
   return visit.greetedName === null ? '' : `Hello, ${visit.greetedName}`

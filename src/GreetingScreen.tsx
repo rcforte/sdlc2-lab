@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import {
   alertText,
   greetingText,
   newVisit,
   NOTHING_SAVED_MESSAGE,
   refusalText,
+  remove,
   save,
   savedNamesHintText,
   submit,
@@ -24,12 +25,31 @@ export function GreetingScreen() {
   const [rawName, setRawName] = useState<string>('')
   const [visit, setVisit] = useState<Visit>(newVisit)
 
+  // A handle on the region, not a third piece of state: it is read only inside an event handler,
+  // and nothing rendered depends on it (ADR-0004 stands, and ADR-0025's extraction tripwire is
+  // not tripped by a ref).
+  const savedNamesRegion = useRef<HTMLElement>(null)
+
   // Handles both routes into a submission: activating the button, and pressing Enter with
   // focus in the Name field (VH-01, human-confirmed). preventDefault stops the native
   // navigation a form submission would otherwise cause.
   const greetVisitor = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setVisit((current) => submit(current, rawName))
+  }
+
+  // Removing is the row's own command, addressed by the row's own name (ADR-0029): the row is a
+  // value, so there is nothing else to identify it by, and a position would go stale the moment
+  // another row above it went.
+  const removeSavedName = (name: string) => {
+    setVisit((current) => remove(current, name))
+    // P19: removing destroys the control that was pressed, so focus has to be put somewhere
+    // deliberately — it goes to the region, which then announces its own new contents. The
+    // region is rendered on every render (P13), so this needs no effect and no flag, and the
+    // focus survives the re-render that the line above schedules. This is the only focus() in
+    // this component: saving and greeting again leave the visitor exactly where they were,
+    // because their controls survive their own activation (saved-name VH-ux-02).
+    savedNamesRegion.current?.focus()
   }
 
   // The domain decides whether there is a message and what it says (INV-5b); this component
@@ -113,7 +133,14 @@ export function GreetingScreen() {
           carries aria-live="polite" and deliberately never role="status": that role is the
           greeting's alone, and a second one would make every bare getByRole('status') above
           ambiguous (VH-04, ADR-0022). */}
-      <section aria-labelledby={SAVED_NAMES_HEADING_ID} aria-live="polite">
+      <section
+        aria-labelledby={SAVED_NAMES_HEADING_ID}
+        aria-live="polite"
+        // tabIndex={-1}, never 0: it makes the region a destination focus can be sent to (P19)
+        // without adding a stop to the tab order every visitor would then have to pass through.
+        tabIndex={-1}
+        ref={savedNamesRegion}
+      >
         <h2 id={SAVED_NAMES_HEADING_ID}>Saved names</h2>
         {/* P14: why the last save added nothing, between the heading and the rows. The key is
             read from the aggregate rather than computed here: it is what makes the same refusal
@@ -130,10 +157,18 @@ export function GreetingScreen() {
         ) : (
           <ul>
             {visit.savedNames.map((name) => (
-              // A row is name text only for now. Its two controls — "Greet me again as <name>"
-              // and "Remove <name>" — are issues 02 and 03, and P16 gives the order they arrive
-              // in (issue 01, Story).
-              <li key={name}>{name}</li>
+              // P16: the name, then the row's controls. "Greet me again as <name>" is issue 02;
+              // the destructive control comes last, so that neither keyboard order nor pointer
+              // aim puts Remove where a visitor reaching for Greet me again will land (ADR-0031).
+              <li key={name}>
+                {name}
+                {/* Each row's control names its own row: a fixed "Remove" could not say which
+                    name it meant, and five identical names would be indistinguishable to anyone
+                    not looking at the screen (seed, Decisions). */}
+                <button type="button" onClick={() => removeSavedName(name)}>
+                  Remove {name}
+                </button>
+              </li>
             ))}
           </ul>
         )}

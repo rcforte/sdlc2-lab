@@ -734,6 +734,189 @@ describe('Greeting screen', () => {
   })
 
   // ---------------------------------------------------------------------------------------
+  // Removing a saved name (issue 03). Lifting the single-slot limit took away the old escape
+  // hatch — replacing — so without removal a name saved by mistake would sit on screen for the
+  // rest of the visit, next to its own greet-again control. These scenarios are issue 03's
+  // Gherkin, one test each.
+  //
+  // Rows are asserted by index (order) and by substring or scoped query (contents), never by an
+  // anchored regex: a row's own controls join its text content, so a row reads
+  // "AdaRemove Ada" (design.md §5.4).
+  // ---------------------------------------------------------------------------------------
+
+  // Given the visitor has saved "<name>", … in that order. Saving is the only route a visitor
+  // has into the list, so each name is greeted and then saved, and the step asserts the list it
+  // claims to have built really arrived — no scenario below can pass from a Given that silently
+  // did not happen.
+  const saveNamesInOrder = async (user: UserEvent, ...names: string[]) => {
+    for (const name of names) {
+      await beGreeted(user, name)
+      await saveTheGreetedName(user, name)
+    }
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(names.length)
+  }
+
+  // Every row carries its own remove control, named for its own name. Five buttons all reading
+  // "Remove" would be indistinguishable to anyone not looking at the screen, and a fixed name
+  // could not say which row it meant (seed, Decisions).
+  it("names each row's remove control for that row's own name", async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob')
+
+    // Then a button named "Remove Ada" is present
+    expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeVisible()
+    // And a button named "Remove Bob" is present
+    expect(screen.getByRole('button', { name: 'Remove Bob' })).toBeVisible()
+    // …each inside its own row, which is what makes the pairing meaningful rather than two
+    // buttons that merely happen to be on the same screen.
+    const rows = rowsInTheSavedNamesRegion()
+    expect(within(rows[0]).getByRole('button', { name: 'Remove Ada' })).toBeVisible()
+    expect(within(rows[1]).getByRole('button', { name: 'Remove Bob' })).toBeVisible()
+  })
+
+  // The scenario removing exists for: three names, one pressed control, and the other two still
+  // there in the order they were saved. It fails an implementation that clears the list, one that
+  // removes by position instead of by name, and one that rebuilds the list in any other order.
+  it('takes out exactly one name and keeps the others in order', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo')
+
+    // When the visitor activates "Remove Bob"
+    await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+    // Then the Saved names region contains a row for "Ada" and a row for "Cleo", in that order
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Ada')
+    expect(rows[1]).toHaveTextContent('Cleo')
+    // And no row for "Bob" is present — asserted page-wide by its own control, which is the one
+    // thing only Bob's row could ever have carried.
+    expect(screen.queryByRole('button', { name: 'Remove Bob' })).toBeNull()
+    expect(
+      within(screen.getByRole('region', { name: SAVED_NAMES_REGION })).queryByText('Bob'),
+    ).toBeNull()
+  })
+
+  // Unlike saving, removing destroys the control that was pressed, so focus cannot stay where it
+  // was and must be put somewhere deliberately. It goes to the region, which then announces its
+  // own new contents — one rule, with no special case for the row's position (ADR-0031).
+  it('moves focus to the Saved names region after removing', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada', 'Bob')
+
+    // When the visitor activates "Remove Ada"
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+
+    // Then the Saved names region has focus
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveFocus()
+  })
+
+  // Removing the last row is not a special case: the same focus rule, and the region simply shows
+  // its empty state again. This fails an implementation that only moves focus when a row survives
+  // to receive it, and one that leaves an empty <ul> behind instead of the words.
+  it('returns the region to its empty state when the only saved name is removed', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" only
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada')
+
+    // When the visitor activates "Remove Ada"
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+
+    // Then the Saved names region reads "No names saved yet."
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+    // …and no row is left behind at all: an empty list would satisfy the text above while still
+    // showing a visitor nothing where the names used to be.
+    expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+    // And the Saved names region has focus
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveFocus()
+  })
+
+  // The list and the greeting are separate things the visit holds: dropping a name the visitor no
+  // longer wants kept must not also change who they are being greeted as. It fails an
+  // implementation that clears the greeting along with the row it came from.
+  it('leaves the greeting alone when the name being greeted is removed', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and is currently greeted "Hello, Ada"
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada')
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor activates "Remove Ada"
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+
+    // Then the greeting still reads "Hello, Ada"
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+  })
+
+  // Removing really gives the room back, rather than only hiding a row. This is the scenario that
+  // fails a limit counted from a running total of saves — a counter that removal forgets to
+  // decrement passes every other scenario in this file and strands the visitor at issue 05's
+  // refusal with a list they can see is not full.
+  it('frees a slot for another save when a name is removed', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" only
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada')
+
+    // When the visitor activates "Remove Ada"
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+    // And the visitor types "Bob" into the Name field
+    // And the visitor activates the submit control
+    await beGreeted(user, 'Bob')
+    // And the visitor activates "Save this name"
+    await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+    // Then the Saved names region contains a row for "Bob" only
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveTextContent('Bob')
+    // …and the removed name did not come back with it, anywhere on the screen: it had two homes,
+    // its row and the hint at the Name field, and a visitor must meet neither again.
+    expect(screen.queryByText('Ada')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Bob')
+  })
+
+  // Two independent things keep a removal from being a submission: the control is type="button",
+  // and it lives in the region, which sits outside the <form>. A <button> defaults to submit, so
+  // losing both at once — the region moved inside the form by a well-meaning tidy-up — is a defect
+  // that passes a casual reading of the markup and fails only in use. The draft and the greeting
+  // disagree here on purpose: if the removal submitted the form, the greeting would move to
+  // "Hello, Grace" and this scenario is the only thing that would notice.
+  it('does not submit the form when a remove control is activated', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada"
+    render(<GreetingScreen />)
+    await saveNamesInOrder(user, 'Ada')
+    // And the Name field now contains "Grace"
+    await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Grace')
+
+    // When the visitor activates "Remove Ada"
+    await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+
+    // Then the greeting is unaffected by the removal
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+    // And the Name field still contains "Grace"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('Grace')
+  })
+
+  // ---------------------------------------------------------------------------------------
   // The saved-name hint at the Name field. Carried forward unchanged from the merged saved-name
   // issue 03 — the hint's rule generalises rather than arrives, so these scenarios keep passing
   // verbatim with one saved name and remembered-names issue 06 widens them to the whole list
