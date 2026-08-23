@@ -404,7 +404,8 @@ is told to state it either way.
 
 ## SD-09 — Two different engines can both call themselves the same version, and pre-check 0 cannot tell
 
-**Affected:** sdlc2 0.1.6, and every version before it · **Status:** open
+**Affected:** sdlc2 0.1.6, and every version before it · **Status:** **repo-side half FIXED** in
+0.1.8 (`[R-PKG-07]`); the reporting half is **open**
 **Severity:** high — it defeats SD-03's fix through the one door that fix cannot watch
 **Found:** 2026-08-23, **not by a run.** Found by diffing the plugin repo against the install
 cache while setting up run 5, after run 4's own fix had been committed.
@@ -463,23 +464,40 @@ slipped for four hours across a commit that changes the engine.
 
 ### What to do about it
 
-- **Catch it in the repo, at the moment of the mistake.** `verify.mjs` should fail when tracked
-  engine files differ from the tag named by `VERSION` — i.e. "you changed the engine without
-  bumping". That is the guard that would have fired at 18:35, before any drift existed, and it
-  costs one probe. This is the fix worth building.
-- **Make the report name the build, not just the version.** Stamp the commit sha into the plugin
-  at release (a `BUILD` file beside `VERSION`, or `0.1.7+9966578`) and have pre-check 0 print it
-  and pass it through as `version`. It does not prevent drift, but it makes a stale run
-  identifiable from its own report afterwards, which today it is not.
+- **Catch it in the repo, at the moment of the mistake.** ✅ **Built as `[R-PKG-07]` in 0.1.8.**
+  `verify.mjs` now fails when any runtime-read file has moved since the tag named by `VERSION` was
+  cut. Runtime-read is `new-feature.workflow.js`, `commands/`, `modes/`, `agents/`, `skills/` and
+  `.claude-plugin/plugin.json` — deliberately not `SPEC.md`, `verify.mjs` or the working notes,
+  which no run reads. Committed and uncommitted drift both count. Two documented skips keep it
+  inert where it would be wrong rather than merely quiet: a `VERSION` with no matching tag is a
+  release in preparation, and a checkout with no git is the install cache.
+
+  Proven rather than asserted, against the real case among others: replaying `9966578` with
+  `VERSION` at `0.1.6` fails and names `new-feature.workflow.js`. And the false-positive direction
+  was checked live — `SPEC.md` and `verify.mjs` both moved after `v0.1.7` was tagged and the probe
+  stayed green.
+
+  **What it does not do:** fire on its own. It is a probe in a suite someone has to run. That is
+  a real limit, not a quibble — the convention it replaces also only worked when someone
+  remembered.
+- **Make the report name the build, not just the version.** ⬜ **Still open — this is what keeps
+  SD-09 unclosed.** Stamp the commit sha into the plugin at release (a `BUILD` file beside
+  `VERSION`, or `0.1.7+9966578`) and have pre-check 0 print it and pass it through as `version`.
+  It does not prevent drift, but it makes a stale run identifiable from its own report afterwards,
+  which today it is not. `[R-PKG-07]` guards the repo; nothing yet guards a run launched from a
+  cache that drifted for any other reason.
 - `installed_plugins.json` already records `gitCommitSha` per install, so the provenance exists on
   the harness side — but the cache is a copy, not a git checkout, so the plugin has nothing to
   compare against until it stamps itself. That is why the stamp comes first.
 
 ### Immediate state
 
-Unblocked the usual way — `[R-REP-06]` ships as **0.1.7**, tagged and pushed. The install and the
-session restart are the human half, and are what SD-03 already requires. The finding stays open
-because nothing yet prevents the next recurrence.
+`[R-REP-06]` ships as **0.1.7** and the guard as **0.1.8**, both tagged and pushed. Neither was
+ever installed separately — they collapse into one `claude plugin update` and one restart, which
+is the human half and is what SD-03 already requires.
+
+The finding stays open on its second half. `[R-PKG-07]` makes the next recurrence *fail loudly in
+the repo*; it does not make a run that already started on a drifted cache say so.
 
 ---
 
