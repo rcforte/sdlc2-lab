@@ -26,6 +26,24 @@ export type SaveRefusal =
   | { readonly kind: 'already-saved'; readonly name: string }
   | { readonly kind: 'full' }
 
+/**
+ * INV-27, INV-28. One saved name and the moment it joined the list, in epoch milliseconds.
+ *
+ * Its identity is `name` alone (ADR-0035): the duplicate check, removal, the greet-again guard
+ * and the row's key all compare names and ignore moments. That is a value object whose equality
+ * is defined on one of its two fields, which is a trap worth naming — the mitigation is that the
+ * comparison happens in exactly one place, `holds` below.
+ *
+ * `savedAt` is a plain number and deliberately not a branded type: it is constructed at exactly
+ * one call site and read by pure functions in this module, so a brand would buy a compile error
+ * nobody can currently provoke.
+ */
+export type SavedName = { readonly name: string; readonly savedAt: number }
+
+/** INV-32. A minute and an hour, in milliseconds, beside the one rule that reads them. */
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+
 /** In-memory state of one visit. Replaced wholesale; never mutated. */
 export type Visit = {
   /** Trimmed and non-blank when present; null until the first successful submission. */
@@ -37,12 +55,12 @@ export type Visit = {
   /** INV-8b. Blank submissions rejected this visit. Monotonic; same role as greetingCount. */
   readonly blankCount: number
   /**
-   * INV-17. The names this visit is holding onto, oldest first; [] until the first save. No
-   * duplicates, at most SAVED_NAMES_LIMIT, and a name never moves once it is in the list. Each
-   * entry is trimmed and non-blank when present — it is a value greetedName already held, so it
-   * inherits INV-2 rather than re-deriving it.
+   * INV-17, INV-27. The names this visit is holding onto, oldest first, each with the moment it
+   * was saved; [] until the first save. No duplicates, at most SAVED_NAMES_LIMIT, and a name
+   * never moves once it is in the list. Each entry's name is trimmed and non-blank when present
+   * — it is a value greetedName already held, so it inherits INV-2 rather than re-deriving it.
    */
-  readonly savedNames: readonly string[]
+  readonly savedNames: readonly SavedName[]
   /** INV-20. Why the most recent save attempt added nothing; null when it added a name. */
   readonly lastSaveRefusal: SaveRefusal | null
   /** INV-21. Writes to the list this visit. Monotonic; identity, not a quantity to display. */
@@ -111,7 +129,7 @@ export function submit(visit: Visit, rawName: string): Visit {
  */
 function withSavedNames(
   visit: Visit,
-  savedNames: readonly string[],
+  savedNames: readonly SavedName[],
   refusal: SaveRefusal | null,
 ): Visit {
   return {
@@ -123,8 +141,18 @@ function withSavedNames(
 }
 
 /**
- * INV-17, INV-18, INV-20, INV-21. Appends the name the visitor is currently greeted as, or
- * refuses and says why.
+ * INV-28. The one place a name is compared to a saved name — so `===` on the already-trimmed
+ * text exists in a single expression instead of once inside each of save, greetAgain and remove,
+ * and so "identity is the name alone" cannot come to mean three different things now that entries
+ * carry a second field (ADR-0035).
+ */
+function holds(savedNames: readonly SavedName[], name: string): boolean {
+  return savedNames.some((saved) => saved.name === name)
+}
+
+/**
+ * INV-17, INV-18, INV-20, INV-21, INV-27. Appends the name the visitor is currently greeted as
+ * together with the moment it joined the list, or refuses and says why.
  *
  * It takes no name argument, and that absence is the guarantee: the greeting is the only possible
  * source, so no caller can save a name the visitor was never greeted as (ADR-0020). Total — with
@@ -135,17 +163,28 @@ function withSavedNames(
  * point is that it holds five (ADR-0007). Already-saved is checked first: when the list is full
  * *and* the name is in it, telling the visitor to remove one would send them to make room for a
  * name that is already there (ADR-0027; human check VH-03).
+ *
+ * The moment is handed in rather than read here, because this module never reads a clock
+ * (INV-33): the reading is taken at the impure edge, which is what keeps every rule in this file
+ * a deterministic function of its arguments (ADR-0036).
+ *
+ * INV-27, and it is structural rather than remembered: this is the only function that ever
+ * *constructs* a SavedName, and it does so only in the appending branch. The already-saved branch
+ * hands the existing list straight back by reference, so re-saving a name cannot move the moment
+ * it already carries — the product's keep-not-refresh decision holds because no code exists that
+ * could refresh it, not because anyone remembers a rule. remove filters, and a filter cannot
+ * rewrite a field. There is no setter.
  */
-export function save(visit: Visit): Visit {
+export function save(visit: Visit, savedAt: number): Visit {
   const name = visit.greetedName
   if (name === null) return visit
-  if (visit.savedNames.includes(name)) {
+  if (holds(visit.savedNames, name)) {
     return withSavedNames(visit, visit.savedNames, { kind: 'already-saved', name })
   }
   if (visit.savedNames.length >= SAVED_NAMES_LIMIT) {
     return withSavedNames(visit, visit.savedNames, { kind: 'full' })
   }
-  return withSavedNames(visit, [...visit.savedNames, name], null)
+  return withSavedNames(visit, [...visit.savedNames, { name, savedAt }], null)
 }
 
 /**
@@ -164,7 +203,7 @@ export function save(visit: Visit): Visit {
  * standing alert" needs no rule of its own. Total: an unsaved name returns the visit unchanged.
  */
 export function greetAgain(visit: Visit, name: string): Visit {
-  if (!visit.savedNames.includes(name)) return visit
+  if (!holds(visit.savedNames, name)) return visit
   return submit(visit, name)
 }
 
@@ -183,10 +222,10 @@ export function greetAgain(visit: Visit, name: string): Visit {
  * change who the visitor is greeted as" needs no rule of its own.
  */
 export function remove(visit: Visit, name: string): Visit {
-  if (!visit.savedNames.includes(name)) return visit
+  if (!holds(visit.savedNames, name)) return visit
   return withSavedNames(
     visit,
-    visit.savedNames.filter((saved) => saved !== name),
+    visit.savedNames.filter((saved) => saved.name !== name),
     null,
   )
 }
@@ -207,7 +246,8 @@ export function alertText(visit: Visit): string | null {
  * null when nothing is saved. Its one-name case is the single slot's own sentence, unchanged.
  */
 export function savedNamesHintText(visit: Visit): string | null {
-  return visit.savedNames.length === 0 ? null : `Saved: ${visit.savedNames.join(', ')}`
+  if (visit.savedNames.length === 0) return null
+  return `Saved: ${visit.savedNames.map((saved) => saved.name).join(', ')}`
 }
 
 /**
@@ -224,4 +264,29 @@ export function refusalText(visit: Visit): string | null {
     case 'full':
       return FULL_LIST_MESSAGE
   }
+}
+
+/**
+ * INV-32. The age reading: one saved-at moment and the current time, in the words a person would
+ * actually use. Derived on every render and never stored, so there is no second copy of this
+ * answer anywhere for a tick to leave behind.
+ *
+ * It is a total pure function of two numbers, which is why it can live in this module while the
+ * stable absolute time cannot (ADR-0037): an elapsed span is the *difference* of two instants, so
+ * it needs no calendar and no timezone, whereas turning one instant into a local wall clock does.
+ *
+ * Whole units, floored, singular at exactly one. Elapsed is clamped at zero so a `now` earlier
+ * than the moment reads "saved just now" rather than a negative age. It never reaches a day: a
+ * row that old leaves the list before anyone can read it, so no reading needs the word "day".
+ */
+export function ageReadingText(savedAt: number, now: number): string {
+  const elapsed = Math.max(0, now - savedAt)
+  if (elapsed < MINUTE_MS) return 'saved just now'
+  if (elapsed < HOUR_MS) return `saved ${counted(Math.floor(elapsed / MINUTE_MS), 'minute')} ago`
+  return `saved ${counted(Math.floor(elapsed / HOUR_MS), 'hour')} ago`
+}
+
+/** The one place a counted unit is made plural, so the two readings cannot disagree about it. */
+function counted(count: number, unit: string): string {
+  return count === 1 ? `1 ${unit}` : `${count} ${unit}s`
 }

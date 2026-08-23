@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { GreetingScreen } from './GreetingScreen'
 
@@ -1975,5 +1975,207 @@ describe('Greeting screen', () => {
     const saveControl = within(region).getByRole('button', { name: SAVE_CONTROL })
     expect(saveControl).toBeVisible()
     expect(saveControl).toBeEnabled()
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // saved-at issue 01 — Every saved name shows when it was saved, and the reading stays honest.
+  //
+  // The readings are copied from this issue's Gherkin rather than imported from src/visit.ts, for
+  // the reason the rest of this file already gives: a scenario that imported the words would pass
+  // whatever those words happened to become.
+  // -------------------------------------------------------------------------------------------
+  describe('the age reading on a saved name', () => {
+    // The wall clock every scenario below saves against. A fixed *local* instant, built from
+    // parts rather than parsed from an ISO string, so the time a visitor's browser would show is
+    // 14:20 wherever this suite runs — the stable absolute time is the local wall clock, and no
+    // scenario may pass or fail on the machine's timezone (feature.md, Out of scope).
+    const SAVE_INSTANT = new Date(2026, 7, 23, 14, 20, 0, 0)
+    // "a stable absolute time" — a time of day, not a date (seed). Asserted as the time this
+    // clock reads and not as an exact accessible name: the wording wrapped around the time is the
+    // architect's, not agreed copy, and is still a human check (VH-01). What the criterion fixes
+    // is that the time is in there and does not move.
+    const STABLE_TIME = /\b14:20\b/
+    // Where that same clock has got to five minutes later — the value the row's accessible name
+    // must NOT have followed.
+    const FIVE_MINUTES_LATER = /\b14:25\b/
+    // The words the criterion forbids in the accessible name. Their absence there, while they are
+    // plainly on screen, is the whole of "the passage of time is never announced".
+    const TICKING_WORDS = /ago|just now/
+
+    // design.md §5.4, measured in this repo: a full vi.useFakeTimers() makes every
+    // `await user.click(...)` in this file hang until it times out, because @testing-library/dom
+    // recognises only *jest*'s fake timers and otherwise awaits a faked setTimeout(0) that can
+    // never fire. Faking setInterval and Date alone advances both the screen's own tick and the
+    // clock it reads, and leaves user-event untouched. The narrowness is a known coupling: a tick
+    // re-implemented with chained setTimeouts would not be advanced by these scenarios (ADR-0041).
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+      vi.setSystemTime(SAVE_INSTANT)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    // "When <so much time> passes with the visitor doing nothing" — no interaction at all: the
+    // clock moves, and whatever the screen does about that it does by itself.
+    const timePasses = async (milliseconds: number) => {
+      await act(async () => {
+        vi.advanceTimersByTime(milliseconds)
+      })
+    }
+
+    // "the row for <name>" — found by the row's own name, never by index: these scenarios are
+    // about what one row says, and an index would quietly follow a different row the moment the
+    // list changed shape. The name node is the only one in a row whose whole text is the name
+    // ("Greet me again as Ada" and "Remove Ada" merely contain it), and finding exactly one row
+    // is asserted rather than assumed.
+    const rowFor = (name: string): HTMLElement => {
+      const matches = rowsInTheSavedNamesRegion().filter(
+        (row) => within(row).queryByText(name) !== null,
+      )
+      expect(matches).toHaveLength(1)
+      return matches[0]
+    }
+
+    // "the row for <name> shows the age reading <words>" — the reading is a node of its own,
+    // matched as that node's whole text, so "saved 1 minute ago" can never be satisfied by
+    // "saved 11 minutes ago" and a reading is never mistaken for the row's other words.
+    const expectAgeReading = (name: string, reading: string) => {
+      expect(within(rowFor(name)).getByText(reading)).toBeInTheDocument()
+    }
+
+    it('reads "saved just now" on a name that has just been saved', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has been greeted "Hello, Ada"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the row for "Ada" shows the age reading "saved just now"
+      expectAgeReading('Ada', 'saved just now')
+    })
+
+    it('counts up in minutes, unprompted, while the screen stays open', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" and the row for "Ada" reads "saved just now"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      expectAgeReading('Ada', 'saved just now')
+
+      // When 60 seconds pass with the visitor doing nothing
+      await timePasses(60_000)
+
+      // Then the row for "Ada" shows the age reading "saved 1 minute ago"
+      expectAgeReading('Ada', 'saved 1 minute ago')
+
+      // When another 60 seconds pass with the visitor doing nothing
+      await timePasses(60_000)
+
+      // Then the row for "Ada" shows the age reading "saved 2 minutes ago"
+      expectAgeReading('Ada', 'saved 2 minutes ago')
+    })
+
+    it('moves from minutes to hours after sixty minutes', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" and the row for "Ada" reads "saved just now"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      expectAgeReading('Ada', 'saved just now')
+
+      // When 60 minutes pass with the visitor doing nothing
+      await timePasses(60 * 60_000)
+
+      // Then the row for "Ada" shows the age reading "saved 1 hour ago"
+      expectAgeReading('Ada', 'saved 1 hour ago')
+    })
+
+    it('gives each row an age reading of its own', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada", then 2 minutes later saved "Bob"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      await timePasses(2 * 60_000)
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+
+      // Then the row for "Ada" shows the age reading "saved 2 minutes ago"
+      expectAgeReading('Ada', 'saved 2 minutes ago')
+      // And the row for "Bob" shows the age reading "saved just now"
+      expectAgeReading('Bob', 'saved just now')
+    })
+
+    it('names a row with a stable absolute time, never with the ticking words', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada"
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+
+      // Then the row for "Ada" has an accessible name that includes a stable absolute time
+      expect(rowFor('Ada')).toHaveAccessibleName(STABLE_TIME)
+      // And the row for "Ada" has an accessible name that does not include the words "ago" or
+      // "just now" …
+      expect(rowFor('Ada')).not.toHaveAccessibleName(TICKING_WORDS)
+      // … which is only worth asserting because those words are plainly on the row.
+      expectAgeReading('Ada', 'saved just now')
+
+      // When 5 minutes pass with the visitor doing nothing
+      await timePasses(5 * 60_000)
+
+      // Then the row for "Ada"'s accessible name still includes that same stable absolute time,
+      // unchanged — it did not follow the clock to 14:25 …
+      expect(rowFor('Ada')).toHaveAccessibleName(STABLE_TIME)
+      expect(rowFor('Ada')).not.toHaveAccessibleName(FIVE_MINUTES_LATER)
+      expect(rowFor('Ada')).not.toHaveAccessibleName(TICKING_WORDS)
+      // … while the reading beside it did move, so the row demonstrably ticked and the stable
+      // time held anyway, rather than both standing still.
+      expectAgeReading('Ada', 'saved 5 minutes ago')
+    })
+
+    it('does not restart the age reading when an already-saved name is saved again', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 10 minutes ago
+      render(<GreetingScreen />)
+      await beGreeted(user, 'Ada')
+      await saveTheGreetedName(user, 'Ada')
+      await timePasses(10 * 60_000)
+      expectAgeReading('Ada', 'saved 10 minutes ago')
+      // And the visitor is currently greeted "Hello, Ada"
+      expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+      // When the visitor activates "Save this name"
+      await user.click(screen.getByRole('button', { name: SAVE_CONTROL }))
+
+      // Then the Saved names region reads "Ada is already saved."
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        'Ada is already saved.',
+      )
+      // And the row for "Ada" still shows the age reading "saved 10 minutes ago"
+      expectAgeReading('Ada', 'saved 10 minutes ago')
+    })
+
+    it('shows no age reading at all while nothing is saved', () => {
+      // Given the visitor has not saved any name
+      render(<GreetingScreen />)
+
+      // Then the Saved names region reads "No names saved yet."
+      expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+        NOTHING_SAVED_TEXT,
+      )
+      // And no text reading "ago" is present. Page-wide rather than scoped to the region, and
+      // matched on an element's own text, so a stray reading rendered anywhere would be caught.
+      expect(screen.queryAllByText(/ago/)).toHaveLength(0)
+    })
   })
 })

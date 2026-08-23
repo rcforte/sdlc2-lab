@@ -1,5 +1,7 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { clockTimeText, nowMs, TICK_MS } from './clock'
 import {
+  ageReadingText,
   alertText,
   greetAgain,
   greetingText,
@@ -26,6 +28,27 @@ export function GreetingScreen() {
   const [rawName, setRawName] = useState<string>('')
   const [visit, setVisit] = useState<Visit>(newVisit)
 
+  // P25. The current time, as a piece of screen state — a reading of the outside world, never
+  // domain state: the visit records when each name was saved and knows nothing of "now". Every
+  // age reading on screen is derived from this one number, so all of them move together and none
+  // of them can go stale on its own.
+  const [now, setNow] = useState<number>(() => nowMs())
+
+  // P25. The only thing in this app that happens without the visitor: one interval for the whole
+  // screen, never one per row, whose callback takes a single clock reading. Fifteen seconds is
+  // TICK_MS's business (src/clock.ts) — this component holds no period of its own.
+  //
+  // The cleanup is load-bearing rather than tidy: without it a remount leaks a second interval,
+  // and StrictMode mounts effects twice in development, so the leak would be there from the first
+  // run. The empty dependency list is what makes this one interval for the life of the mount.
+  //
+  // Known coupling (ADR-0041): the acceptance seam fakes setInterval, so a tick re-implemented
+  // with chained setTimeouts would keep the screen honest in a browser and go untested here.
+  useEffect(() => {
+    const tick = setInterval(() => setNow(nowMs()), TICK_MS)
+    return () => clearInterval(tick)
+  }, [])
+
   // A handle on the region, not a third piece of state: it is read only inside an event handler,
   // and nothing rendered depends on it (ADR-0004 stands, and ADR-0025's extraction tripwire is
   // not tripped by a ref).
@@ -37,6 +60,15 @@ export function GreetingScreen() {
   const greetVisitor = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setVisit((current) => submit(current, rawName))
+  }
+
+  // P26. The clock is read here, in the handler, and never inside the state updater: React may
+  // invoke an updater twice (StrictMode does, in development), and an updater that read the clock
+  // would not be a pure function of its argument — one press could then produce two different
+  // moments. Keeping the reading outside leaves the impurity where it already was.
+  const saveTheGreetedName = () => {
+    const savedAt = nowMs()
+    setVisit((current) => save(current, savedAt))
   }
 
   // Removing is the row's own command, addressed by the row's own name (ADR-0029): the row is a
@@ -157,13 +189,29 @@ export function GreetingScreen() {
           <p>{NOTHING_SAVED_MESSAGE}</p>
         ) : (
           <ul>
-            {visit.savedNames.map((name) => (
+            {visit.savedNames.map(({ name, savedAt }) => (
               // P16: the row's own name first, then the controls that act on it — "Greet me
               // again as <name>" (issue 02), then "Remove <name>" (issue 03). The destructive
               // control comes last, so that neither keyboard order nor pointer aim puts Remove
               // where a visitor reaching for Greet me again will land (ADR-0031).
-              <li key={name}>
+              //
+              // P22: the row's accessible name carries the stable absolute time — the unmoving
+              // form of the same moment, offered to assistive technology in the age reading's
+              // place. It is computed from two values that never change for the life of the row,
+              // so a tick cannot move it, which is the whole of "the passage of time is never
+              // announced" seen from the other side (ADR-0040). An aria-label is what makes the
+              // row nameable at all: a listitem takes no accessible name from its contents.
+              <li key={name} aria-label={`${name}, saved at ${clockTimeText(savedAt)}`}>
                 <span>{name}</span>
+                {/* P21: how long ago this name was saved, in the words the domain owns — derived
+                    on every render from the moment and the current time, so it stays true while
+                    the visitor sits here rather than freezing at whatever it said when the row
+                    was drawn. This is the only node in the region whose text changes on a tick,
+                    and aria-hidden is what keeps that change out of the accessibility tree, so
+                    the polite region cannot announce time passing. That is the mechanism of a
+                    requirement, not decoration being hidden — and it is why the row needs the
+                    stable time above. Whether a real screen reader honours it is VH-02. */}
+                <span aria-hidden="true">{ageReadingText(savedAt, now)}</span>
                 {/* P16, P12: a way back to this name without retyping it. The control carries
                     the row's name, which reverses the single slot's fixed-name rule and is
                     meant to (seed, Decisions): a row's control acts on one name for as long as
@@ -198,7 +246,7 @@ export function GreetingScreen() {
           // P12: type="button" and outside the <form>, so activating it is a save and never a
           // submission; and it sits outside every keyed node above, so React reuses this same DOM
           // node across a save and the visitor's focus survives its own click.
-          <button type="button" onClick={() => setVisit(save)}>
+          <button type="button" onClick={saveTheGreetedName}>
             Save this name
           </button>
         )}

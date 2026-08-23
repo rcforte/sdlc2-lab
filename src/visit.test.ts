@@ -1,4 +1,5 @@
 import {
+  ageReadingText,
   ALERT_MESSAGE,
   alertText,
   greetAgain,
@@ -18,6 +19,12 @@ import visitSource from './visit.ts?raw'
 const source = visitSource
   .replace(/\/\*[\s\S]*?\*\//g, '') // strip block comments
   .replace(/\/\/.*$/gm, '') // strip line comments
+
+// saved-at: save now takes the moment the name joined the list, because this module may not read
+// a clock (INV-33) — the reading is taken at the impure edge and handed in (ADR-0036). The three
+// merged call sites below pass a literal instant and assert exactly what they asserted before:
+// that they stayed literal is the evidence the domain is still deterministic.
+const AN_INSTANT = 1_700_000_000_000
 
 describe('Visit', () => {
   it('stays pure: no imports, no top-level mutable state, no ambient browser globals (INV-6b)', () => {
@@ -130,7 +137,7 @@ describe('Visit', () => {
   // forgets the condition) cannot invent a saved name out of nothing. Returned by identity, so a
   // press that could do nothing is not counted as a write either (INV-21).
   it('does nothing when there is no greeting to save (INV-18)', () => {
-    expect(save(newVisit)).toBe(newVisit)
+    expect(save(newVisit, AN_INSTANT)).toBe(newVisit)
   })
 
   // INV-21: every write to the list is a new event, including a refusal that changes nothing.
@@ -140,8 +147,8 @@ describe('Visit', () => {
   // (VH-04(b)). Replaces the single-slot INV-11 assertion, whose "two saves of the same name are
   // two saves" is now "the second one is refused, and the refusal is still an event".
   it('counts a refused save as a write of its own, without touching the list (INV-21)', () => {
-    const saved = save(submit(newVisit, 'Ada'))
-    const refused = save(saved)
+    const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
+    const refused = save(saved, AN_INSTANT + 60_000)
 
     expect(refused.savedNames).toEqual(saved.savedNames) // the list is untouched …
     expect(refused.savedNamesRevision).toBe(saved.savedNamesRevision + 1) // … and still an event
@@ -158,13 +165,49 @@ describe('Visit', () => {
     expect(greetAgain(greeted, 'Ada')).toBe(greeted)
   })
 
+  // -----------------------------------------------------------------------------------------
+  // saved-at — the age reading's boundaries. Every word a visitor actually reads is a scenario
+  // in GreetingScreen.test.tsx; what sits here is what no scenario can reach without a
+  // sixty-minute test per case, plus one case the screen cannot produce at all (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-32: the reading changes shape at exactly a minute and exactly an hour, and floors to
+  // whole units in between. A scenario proves the words; only this can sit one millisecond
+  // either side of a boundary, which is where an off-by-one lives — ">=" written as ">" would
+  // leave a row reading "saved just now" a full minute after it was saved.
+  it('changes the age reading at exactly a minute and exactly an hour (INV-32)', () => {
+    const savedAt = 1_000_000
+
+    expect(ageReadingText(savedAt, savedAt)).toBe('saved just now')
+    expect(ageReadingText(savedAt, savedAt + 59_999)).toBe('saved just now')
+    expect(ageReadingText(savedAt, savedAt + 60_000)).toBe('saved 1 minute ago')
+    expect(ageReadingText(savedAt, savedAt + 119_999)).toBe('saved 1 minute ago')
+    expect(ageReadingText(savedAt, savedAt + 120_000)).toBe('saved 2 minutes ago')
+    expect(ageReadingText(savedAt, savedAt + 3_599_999)).toBe('saved 59 minutes ago')
+    expect(ageReadingText(savedAt, savedAt + 3_600_000)).toBe('saved 1 hour ago')
+    expect(ageReadingText(savedAt, savedAt + 7_199_999)).toBe('saved 1 hour ago')
+    expect(ageReadingText(savedAt, savedAt + 7_200_000)).toBe('saved 2 hours ago')
+  })
+
+  // INV-32, the case the screen cannot produce: the reading is a pure function of two numbers, so
+  // it has to answer for a "now" that is earlier than the moment — reachable if a machine's clock
+  // is set back between a save and a tick. Elapsed is clamped at zero, so the row reads "saved
+  // just now" rather than "saved -1 minutes ago", which is the one thing a visitor must never
+  // see. No scenario can reach it: fake timers only move forwards.
+  it('reads "saved just now" when now is earlier than the moment, never a negative age', () => {
+    const savedAt = 1_000_000
+
+    expect(ageReadingText(savedAt, savedAt - 1)).toBe('saved just now')
+    expect(ageReadingText(savedAt, savedAt - 3_600_000)).toBe('saved just now')
+  })
+
   // INV-19: remove is total. No scenario can reach this, because a name that is not saved has no
   // row and therefore no "Remove <name>" control to press — the rule exists so that a second
   // caller cannot make a removal out of nothing. Returned by identity, so a removal that could
   // remove nothing is not counted as a write of the list either (INV-21), and the region is not
   // asked to re-announce contents that did not change.
   it('does nothing when the name to remove is not saved (INV-19)', () => {
-    const saved = save(submit(newVisit, 'Ada'))
+    const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
 
     expect(remove(saved, 'Zoe')).toBe(saved)
   })
