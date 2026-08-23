@@ -1128,4 +1128,82 @@ describe('Greeting screen', () => {
     // right answer here instead of moving focus.
     expect(screen.getByRole('button', { name: SAVE_CONTROL })).toHaveFocus()
   })
+
+  // ---------------------------------------------------------------------------------------
+  // saved-name issue 05 — A fresh visit starts with nothing saved. One acceptance test per
+  // Gherkin scenario, driven through the declared frontend seam (RTL + user-event via
+  // Vitest/jsdom) and through the same named "fresh visit" step the greet-visitor scenarios
+  // above already use — unmount, render again (design.md §5.4; jsdom has no navigation).
+  //
+  // Guard scenarios (design.md §5.1, ADR-0019): savedName and saveCount are fields of Visit,
+  // which lives in a useState inside this component, so nothing survives a remount and there is
+  // no reset logic to get wrong. They are not decoration — they go red the moment that state is
+  // lifted out of the component (a module-level let, a context, a store), which is the realistic
+  // regression here, and the fix for a red bar is structural: put the state back, never add
+  // reset-on-mount logic on top of state that leaked.
+  //
+  // Each Given is asserted in full before the fresh visit, so no Then below can pass against a
+  // screen that was already clean — an absence is only evidence when the thing was there first.
+  // ---------------------------------------------------------------------------------------
+
+  it('starts with nothing saved on a fresh visit after saving', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada" during a visit
+    const { unmount } = render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    // …and that visit really did reach the state whose absence is asserted below: the saved name
+    // at the field, and both of the region's controls on screen.
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Ada')
+    const previousVisit = screen.getByRole('region', { name: SAVED_NAME_REGION })
+    expect(within(previousVisit).getByRole('button', { name: SAVE_CONTROL })).toBeVisible()
+    expect(within(previousVisit).getByRole('button', { name: GREET_AGAIN_CONTROL })).toBeVisible()
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the Saved name region reads "No name saved yet."
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+    // …and the previous visit's name is nowhere on the screen. Page-wide, because it had two
+    // homes — the region and the hint — and a visitor must not meet either one again.
+    expect(screen.queryByText('Saved: Ada')).toBeNull()
+    // And no button named "Save this name" is present
+    expect(screen.queryByRole('button', { name: SAVE_CONTROL })).toBeNull()
+    // And no button named "Greet me again" is present
+    expect(screen.queryByRole('button', { name: GREET_AGAIN_CONTROL })).toBeNull()
+    // And the Name field has no accessible description
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('')
+    // …with the attribute absent rather than emptied, exactly as on the very first arrival: an
+    // empty aria-describedby is a dangling reference, not the same thing as nothing to say.
+    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('starts with nothing saved on a fresh visit after greeting again', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor saved "Ada" and activated "Greet me again" during a visit
+    const { unmount } = render(<GreetingScreen />)
+    await beGreeted(user, 'Ada')
+    await saveTheGreetedName(user, 'Ada')
+    await user.click(screen.getByRole('button', { name: GREET_AGAIN_CONTROL }))
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Ada'), verbatim)
+
+    // When the visitor starts a fresh visit
+    startAFreshVisit(unmount)
+
+    // Then the Saved name region reads "No name saved yet."
+    expect(screen.getByRole('region', { name: SAVED_NAME_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+    expect(screen.queryByText('Saved: Ada')).toBeNull()
+    // And the status region is present and contains no text — getByRole, not queryByRole, so a
+    // region that vanished on the remount fails loudly here instead of passing as "no text".
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    // And no button named "Greet me again" is present: using the saved name is not a way of
+    // keeping it, so the second visit is offered nothing to greet again as.
+    expect(screen.queryByRole('button', { name: GREET_AGAIN_CONTROL })).toBeNull()
+  })
 })
