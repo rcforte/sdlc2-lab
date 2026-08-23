@@ -1408,6 +1408,164 @@ describe('Greeting screen', () => {
   })
 
   // ---------------------------------------------------------------------------------------
+  // remembered-names issue 06 — Be reminded of *every* saved name at the Name field. One
+  // acceptance test per Gherkin scenario, at the declared seam (RTL + user-event via
+  // Vitest/jsdom), entry point render(<GreetingScreen />).
+  //
+  // Guard block — expected green on the first run; see design.md §5.1. Every test is
+  // list-shaped, because the one-name reading of each scenario is already pinned by the four
+  // merged hint scenarios above, which §4.3 requires this feature to leave untouched.
+  //
+  // "described by text" is asserted as two claims: the association (which elements
+  // aria-describedby names, and in what order) and the text on a visible element. A hidden node
+  // satisfies the description alone; a by-text match alone would find the region's rows.
+  // ---------------------------------------------------------------------------------------
+
+  // Given the visitor has saved "<name>", … in that order. Each name is greeted first, because
+  // saving appends the greeting and never the field's draft (R19). Row text is a substring
+  // match: a row grows to include its own controls' names once issues 02 and 03 land.
+  const haveSaved = async (user: UserEvent, ...names: string[]) => {
+    for (const name of names) {
+      await beGreeted(user, name)
+      await saveTheGreetedName(user, name)
+    }
+    const rows = rowsInTheSavedNamesRegion()
+    expect(rows).toHaveLength(names.length)
+    names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
+  }
+
+  // Scenario 1. The merged suite pins the field's own description here; what it cannot say is
+  // that the sentence is absent from the whole screen.
+  it('shows no saved-name hint anywhere while nothing is saved', () => {
+    // Given the visitor has not saved any name
+    render(<GreetingScreen />)
+    expect(screen.getByRole('region', { name: SAVED_NAMES_REGION })).toHaveTextContent(
+      NOTHING_SAVED_TEXT,
+    )
+
+    // Then no element with the text "Saved:" is present — matched on an element's own text, so
+    // this finds a hint <p> and never an ancestor of one.
+    expect(screen.queryAllByText(/Saved:/)).toHaveLength(0)
+  })
+
+  // Scenario 2 — the one this slice exists for.
+  it('describes the Name field with every saved name, in the order they were saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+    render(<GreetingScreen />)
+    await haveSaved(user, 'Ada', 'Bob', 'Cleo')
+
+    // Then the Name field is described by text reading "Saved: Ada, Bob, Cleo"
+    const field = screen.getByRole('textbox', { name: 'Name' })
+    expect(field).toHaveAccessibleDescription('Saved: Ada, Bob, Cleo')
+    // …by exactly one visible element whose own text is that phrase and nothing else — the hint
+    // has no children, so an anchored match is safe here, unlike on a row.
+    const described = describedBy(field)
+    expect(described).toHaveLength(1)
+    expect(described[0]).toBeVisible()
+    expect(described[0]).toHaveTextContent(exactly('Saved: Ada, Bob, Cleo'), verbatim)
+  })
+
+  // Still scenario 2, and what makes its "in the order they were saved" able to fail: Ada, Bob
+  // and Cleo are already alphabetical, so a formatter that sorted the list would read the same
+  // and pass the test above. One further name saved out of alphabetical order settles it.
+  it('lists the saved names in save order even when that is not alphabetical order', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada", "Bob" and "Cleo", in that order
+    render(<GreetingScreen />)
+    await haveSaved(user, 'Ada', 'Bob', 'Cleo')
+
+    // When the visitor is greeted as "Abe" — which sorts before all three — and saves it
+    await beGreeted(user, 'Abe')
+    await saveTheGreetedName(user, 'Abe')
+
+    // Then "Abe" is named last, where it was saved, and not first, where it would sort
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob, Cleo, Abe',
+    )
+  })
+
+  // Scenario 3, as amended under VH-06. Its removing half — the only place the hint is proved
+  // to *shrink* — needs the "Remove <name>" control that 03-remove-a-saved-name introduces and
+  // this lane is not cut from; VH-06 defers it to integration and writes out the assertion.
+  it('updates the hint as each further name is saved', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada"
+    render(<GreetingScreen />)
+    await haveSaved(user, 'Ada')
+    // And the Name field is described by text reading "Saved: Ada"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription('Saved: Ada')
+
+    // When the visitor is greeted as "Bob" and saves that name too
+    await beGreeted(user, 'Bob')
+    await saveTheGreetedName(user, 'Bob')
+
+    // Then the Name field is described by text reading "Saved: Ada, Bob"
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+      'Saved: Ada, Bob',
+    )
+    // …and the hint moved rather than gaining a second copy: what it used to read is gone.
+    expect(screen.queryByText('Saved: Ada')).toBeNull()
+  })
+
+  // Scenario 4, with the list the merged one-name version cannot show: a hint sourced from the
+  // Name field would read "Gr" here, and one showing only the newest saved name would drop Ada.
+  it('still describes the Name field with every saved name while mid-draft', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await haveSaved(user, 'Ada', 'Bob')
+
+    // When the visitor types "Gr" into the Name field without submitting — the field holds
+    // "Bob" from the greeting that was just saved, so it is cleared first.
+    const field = screen.getByRole('textbox', { name: 'Name' })
+    await user.clear(field)
+    await user.type(field, 'Gr')
+    expect(field).toHaveValue('Gr')
+    // …and nothing was submitted: the greeting is still the one that was saved last.
+    expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Bob'), verbatim)
+
+    // Then the Name field is still described by text reading "Saved: Ada, Bob"
+    expect(field).toHaveAccessibleDescription('Saved: Ada, Bob')
+    const described = describedBy(field)
+    expect(described).toHaveLength(1)
+    expect(described[0]).toBeVisible()
+  })
+
+  // Scenario 5, with the list. Both describe the field at once, so their order is a decision:
+  // the error about the submission just made outranks a standing piece of context.
+  it('describes the Name field with the blank-name alert before the whole hint', async () => {
+    const user = userEvent.setup()
+
+    // Given the visitor has saved "Ada" and "Bob", in that order
+    render(<GreetingScreen />)
+    await haveSaved(user, 'Ada', 'Bob')
+
+    const field = screen.getByRole('textbox', { name: 'Name' })
+
+    // When the visitor clears the Name field
+    await user.clear(field)
+    // And the visitor activates the submit control
+    await user.click(screen.getByRole('button', { name: 'Greet me' }))
+
+    // Then an alert reads "Please enter your name."
+    expect(screen.getByRole('alert')).toHaveTextContent(exactly(ALERT_TEXT), verbatim)
+
+    // And the Name field's description lists the alert before the saved-name hint
+    const described = describedBy(field)
+    expect(described).toHaveLength(2)
+    expect(described[0]).toBe(screen.getByRole('alert'))
+    // …the whole hint, not a version that shortens once an alert joins it.
+    expect(described[1]).toHaveTextContent(exactly('Saved: Ada, Bob'), verbatim)
+    // …and that order is what a visitor receives, not just what the attribute says.
+    expect(field).toHaveAccessibleDescription(`${ALERT_TEXT} Saved: Ada, Bob`)
+  })
+
+  // ---------------------------------------------------------------------------------------
   // A fresh visit starts with nothing saved. Carried forward from the merged single-slot
   // saved-name issue 05 and rewritten here for the region's new copy and its rows (design.md
   // §4.3); remembered-names issue 07 replaces this pair with its own three scenarios.
