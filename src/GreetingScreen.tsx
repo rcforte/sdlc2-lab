@@ -123,7 +123,13 @@ export function GreetingScreen() {
   // back in it; nothing sends focus into the restored row, which would land the visitor one
   // tab-stop from the Remove control that started this.
   const bringTheNameBack = () => {
-    setVisit((current) => bringBack(current))
+    // P29. The reading handed in is the one this render already used, never a fresh nowMs(): the
+    // control is on screen because that number said the offer stands, and the command tests the
+    // same number, so a visible offer can never turn out to be inert. A later reading could
+    // disagree with the render that drew the button, which the visitor would experience as a
+    // button doing nothing (ADR-0047, VH-04). It is not a clock read inside an updater, so P26 is
+    // untouched.
+    setVisit((current) => bringBack(current, now))
     savedNamesRegion.current?.focus()
   }
 
@@ -144,7 +150,14 @@ export function GreetingScreen() {
   // P28. The name the offer would bring back, or null when there is nothing waiting to come back
   // (R43). No new screen state: the offer is a field of the visit, so the control and the command
   // read one answer and a visible offer can never be one the command would decline to act on.
-  const offered = offeredName(visit)
+  //
+  // It is asked of `now`, so this is also where the offer quietly goes once the held entry is more
+  // than a day old (R42). That is the offer's *availability* being derived on render while its
+  // existence stays domain state, which is the whole mechanism of the silence the seed asks for:
+  // a tick that ages the offer out changes no state, so nothing is announced and no standing
+  // message is cleared — the control is simply absent on the next render, exactly as the save
+  // control and the sort control already are when there is nothing for them to do (ADR-0046).
+  const offered = offeredName(visit, now)
 
   // P23. Which saved name is the newest, or null when nothing is saved (INV-29). Read once for
   // the whole list rather than once per row: the domain answers "which name is the most recent"

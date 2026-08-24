@@ -296,15 +296,51 @@ export function remove(visit: Visit, name: string): Visit {
 const DAY_MS = 24 * HOUR_MS
 
 /**
+ * INV-37. The day-old cutoff, in one expression: whether a moment is more than a day behind a
+ * given reading of the clock.
+ *
+ * *Older than* a day, not *at least* a day — a moment exactly DAY_MS behind has not aged. That is
+ * INV-31's comparison moved rather than copied, and moving it is the point: the rule about which
+ * rows there still are and the rule about whether an offer still stands now read the same
+ * expression, so the held entry cannot come to obey a cutoff a few milliseconds away from the one
+ * every visible row obeys. Two spellings of one boundary is exactly the kind of drift no test
+ * would catch until a visitor was handed back a name that vanished on the next tick.
+ *
+ * It takes the reading rather than taking one: this module never reads a clock (INV-33), so both
+ * of its callers stay deterministic functions of their arguments (ADR-0036).
+ */
+function hasAged(savedAt: number, now: number): boolean {
+  return now - savedAt > DAY_MS
+}
+
+/**
+ * INV-38. Whether the offer stands: there is a removal waiting to be taken back, and the entry it
+ * would bring back is not yet a day old.
+ *
+ * One predicate, read by offeredName — whether the screen shows a control at all — and by
+ * bringBack — whether the command does anything. That is what makes ADR-0043's promise literal:
+ * the offer is either present and certain to work, or absent, because both halves ask one
+ * question rather than two that could answer differently. It is the same shape holds already has
+ * for save, remove and greetAgain.
+ *
+ * A type predicate, so the null check narrows for the caller and neither of the two re-tests it.
+ */
+function stands(held: LastRemoval | null, now: number): held is LastRemoval {
+  return held !== null && !hasAged(held.entry.savedAt, now)
+}
+
+/**
  * INV-31. Drops every saved name that is more than a day old, measured from its own saved-at
  * moment. A name leaves on its own, with the visitor doing nothing, so that the list stays a
  * record of names they still care about rather than everything they have ever typed.
  *
  * *Older than* a day, not *at least* a day: a name exactly DAY_MS old stays, which is the cutoff
- * the strict comparison spells. Nobody can see the difference on a screen — it re-reads the clock
- * once every fifteen seconds, so a row leaves at the first reading past its own mark and a reading
- * landing exactly on that millisecond is a coincidence no visitor can arrange. It is written down
- * because the words are "older than a day" and a rule should say what its words say.
+ * hasAged spells — and it spells it for the offer too, so a row and the name waiting to come back
+ * leave at the same millisecond rather than at two cutoffs that merely happen to agree (INV-37).
+ * Nobody can see the difference on a screen — it re-reads the clock once every fifteen seconds, so
+ * a row leaves at the first reading past its own mark and a reading landing exactly on that
+ * millisecond is a coincidence no visitor can arrange. It is written down because the words are
+ * "older than a day" and a rule should say what its words say.
  *
  * The cutoff is measured from the moment, so a calendar boundary is not a moment: a name saved at
  * 23:50 is twenty minutes old at ten past midnight, exactly as it would be at ten past two.
@@ -325,7 +361,7 @@ const DAY_MS = 24 * HOUR_MS
  * (INV-33), which is what keeps the cutoff a deterministic function of its arguments (ADR-0036).
  */
 export function expire(visit: Visit, now: number): Visit {
-  const kept = visit.savedNames.filter((saved) => now - saved.savedAt <= DAY_MS)
+  const kept = visit.savedNames.filter((saved) => !hasAged(saved.savedAt, now))
   if (kept.length === visit.savedNames.length) return visit
   // A name falling off is a write to the list like any other, so it ends the offer — even when
   // the name that fell off is not the one waiting to come back (R41). The list the held entry
@@ -352,12 +388,19 @@ export function expire(visit: Visit, now: number): Visit {
  * needs no rule of its own.
  *
  * The offer is spent, not restored: there is no undoing the undo (seed, Out of scope). Total —
- * with nothing waiting to come back there is nothing to do, so the visit is returned by identity
- * and the press is never a refusal and never a message (ADR-0043).
+ * with nothing waiting to come back, or with a held entry already more than a day old, there is
+ * nothing to do, so the visit is returned by identity and the press is never a refusal and never
+ * a message (ADR-0043).
+ *
+ * It asks stands rather than merely checking for null, and it asks it of the same reading of the
+ * clock the render that drew the control used (P29). That is what makes "either present and
+ * certain to work, or absent" literal: a second, later reading could disagree with the render,
+ * which is a button on screen that does nothing — the one failure the seed rules out. The reading
+ * is handed in for the reason save and expire are handed theirs (INV-33, ADR-0036).
  */
-export function bringBack(visit: Visit): Visit {
+export function bringBack(visit: Visit, now: number): Visit {
   const held = visit.lastRemoval
-  if (held === null) return visit
+  if (!stands(held, now)) return visit
   return withSavedNames(
     visit,
     [
@@ -415,10 +458,19 @@ export function refusalText(visit: Visit): string | null {
  * messages a visitor reads; it does not own the words on buttons.
  *
  * Whether the control exists at all is this one answer, so a screen cannot show an offer the
- * command would decline to act on — there is one question, asked in one place (ADR-0043).
+ * command would decline to act on — there is one question, asked in one place (ADR-0043), and it
+ * is stands, which bringBack asks too.
+ *
+ * The held entry ages like every visible row: once its own moment is more than a day old this
+ * answers null and the control is simply not rendered (R42). That ageing is *derived here on
+ * every read* and never written anywhere — expire does not touch the offer, no revision moves and
+ * no message is cleared — which is precisely why the ending is silent rather than announced
+ * (ADR-0046). A name brought back therefore goes on ageing from the moment it already had, since
+ * nothing about coming back re-dates it.
  */
-export function offeredName(visit: Visit): string | null {
-  return visit.lastRemoval?.entry.name ?? null
+export function offeredName(visit: Visit, now: number): string | null {
+  const held = visit.lastRemoval
+  return stands(held, now) ? held.entry.name : null
 }
 
 /**

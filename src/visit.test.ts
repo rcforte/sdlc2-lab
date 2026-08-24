@@ -9,6 +9,7 @@ import {
   isBlank,
   newestSavedName,
   newVisit,
+  offeredName,
   remove,
   save,
   savedNamesInView,
@@ -343,7 +344,7 @@ describe('Visit', () => {
       newVisit,
     )
 
-    const restored = bringBack(remove(full, 'Cleo'))
+    const restored = bringBack(remove(full, 'Cleo'), AN_INSTANT + 5 * 60_000)
 
     expect(restored.savedNames).toEqual(full.savedNames)
     // …and the entries are the very objects the list already held, never rebuilt ones: a saved-at
@@ -359,7 +360,23 @@ describe('Visit', () => {
   it('does nothing when there is no removal to take back (INV-34)', () => {
     const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
 
-    expect(bringBack(saved)).toBe(saved)
-    expect(bringBack(saved).savedNamesRevision).toBe(saved.savedNamesRevision)
+    expect(bringBack(saved, AN_INSTANT)).toBe(saved)
+    expect(bringBack(saved, AN_INSTANT).savedNamesRevision).toBe(saved.savedNamesRevision)
+  })
+
+  // INV-37, INV-38: the held entry obeys the day-old cutoff every visible row obeys, and obeys it
+  // at exactly the same millisecond — *older than* a day, not *at least* a day, which is the
+  // comparison expire has always spelled. Asserted here rather than at the seam because sitting on
+  // the boundary through the screen would cost a 24-hour scenario per side for a difference no
+  // visitor can arrange: the screen re-reads the clock once every fifteen seconds, so a reading
+  // landing on that millisecond is a coincidence, and the two acceptance scenarios either side of
+  // the boundary are four minutes out and six minutes past it. Asserted through offeredName
+  // because stands is module-private and stays that way — one answer, read here as the screen
+  // reads it.
+  it('offers the held entry at exactly a day old, and not a millisecond later (INV-37, INV-38)', () => {
+    const removed = remove(save(submit(newVisit, 'Ada'), AN_INSTANT), 'Ada')
+
+    expect(offeredName(removed, AN_INSTANT + A_DAY)).toBe('Ada')
+    expect(offeredName(removed, AN_INSTANT + A_DAY + 1)).toBeNull()
   })
 })

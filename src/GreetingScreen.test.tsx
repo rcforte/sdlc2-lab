@@ -89,9 +89,21 @@ const expectRowsInDisplayOrder = (...names: string[]) => {
   names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
 }
 
+// "a button named 'Bring <name> back'" — the offer, written out from the Gherkin rather than
+// read off the component, for the reason the rest of this file already gives: a scenario that
+// asked the component what its control is called would pass whatever name the component happened
+// to give it. It sits up here beside the rows for the reason rowFor and expectAgeReading do — two
+// blocks ask for the offer now, undo-a-removal's issue 01 (does it appear, and what does pressing
+// it do) and its issue 03 (is it still there once the held entry is a day old) — and two spellings
+// of one query is how the two would drift apart.
+const offerFor = (name: string) => `Bring ${name} back`
+
+const offer = (name: string): HTMLElement =>
+  screen.getByRole('button', { name: offerFor(name) })
+
 // "When <so much time> passes with the visitor doing nothing" — no interaction at all: the clock
-// moves, and whatever the screen does about that it does by itself. Shared by the two blocks that
-// move the clock (issues 01 and 04), each of which turns the narrow fake timers on for itself.
+// moves, and whatever the screen does about that it does by itself. Shared by every block that
+// moves the clock, each of which turns the narrow fake timers on for itself.
 const timePasses = async (milliseconds: number) => {
   await act(async () => {
     vi.advanceTimersByTime(milliseconds)
@@ -2851,12 +2863,6 @@ describe('Greeting screen', () => {
     const MINUTE = 60_000
     const HOUR = 60 * MINUTE
 
-    // "a button named 'Bring <name> back'" — the offer, copied from this issue's Gherkin.
-    const offerFor = (name: string) => `Bring ${name} back`
-
-    const offer = (name: string): HTMLElement =>
-      screen.getByRole('button', { name: offerFor(name) })
-
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
       vi.setSystemTime(AN_AFTERNOON)
@@ -3128,6 +3134,171 @@ describe('Greeting screen', () => {
       // nothing was taken from them by mistake and there is nothing to take back
       expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
       expect(screen.queryAllByText(offerFor('Ada'))).toHaveLength(0)
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // undo-a-removal issue 03 — the held entry ages like the rest.
+  //
+  // One acceptance test per Gherkin scenario, through the same seam as every scenario above: the
+  // rendered DOM, by role and accessible name. Nothing here needs new markup, and that is the
+  // slice: the whole of it is a control that stops being rendered once the name it would bring
+  // back is more than a day old, which is why three of the four assertions below are absences.
+  //
+  // Which of the four are red on arrival is worth saying, so nobody reads a green bar as proof of
+  // more than it is (design.md §5.1). Red: "takes the offer away, silently, once the held entry
+  // turns a day old" and "without disturbing anything else on screen" — an offer that never ages
+  // keeps its button in both, and the second is the one that also fails an implementation that
+  // ends the offer inside expire, because in it expire drops nothing at all. Green either way,
+  // and kept: "leaves the offer standing just short of a day", which is the boundary read from
+  // the near side and fails a cutoff written short or an offer retired by whichever tick happens
+  // to touch it; and "keeps a name brought back ageing from its original moment", which the
+  // restore already honours by putting the very entry back (INV-36) and which now also fails if
+  // the guard added to bringBack turns a live offer inert before its own boundary. A boundary is
+  // worth pinning from both sides, and nothing here was loosened to obtain a red bar.
+  //
+  // What this seam cannot see is the *silence* of the ending: jsdom implements no announcement,
+  // so "no message, nothing announced" is proven here only as far as no text appears, and the
+  // rest stays VH-02. The merged constraint test above is deliberately not extended to cover it —
+  // it never leaves an offer standing, and from this slice on a tick genuinely may change what
+  // the region shows, so leaving an offer standing before its tick would make it fail for the
+  // right reason and be read as the wrong one (design.md N19).
+  // -------------------------------------------------------------------------------------------
+  describe('the held entry ageing out', () => {
+    // The wall clock these scenarios save against — a fixed *local* instant built from parts, for
+    // the reason the blocks above give: no scenario may pass or fail on the machine's timezone.
+    const AN_AFTERNOON = new Date(2026, 7, 23, 14, 20, 0, 0)
+
+    const MINUTE = 60_000
+    const HOUR = 60 * MINUTE
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+      vi.setSystemTime(AN_AFTERNOON)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    // "Given the visitor saved <name> <so long> ago, and activated Remove <name> just now, so a
+    // button named 'Bring <name> back' is present" — the Given three of these four scenarios open
+    // with, spelled once. It asserts the row was really there to be removed and that the offer
+    // really arrived, so no scenario below can pass from a Given that silently did not happen: an
+    // absence that was an absence all along proves nothing.
+    const letItAgeAndRemoveIt = async (user: UserEvent, name: string, age: number) => {
+      await timePasses(age)
+      expect(rowFor(name)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: `Remove ${name}` }))
+      expect(offer(name)).toBeVisible()
+    }
+
+    it('leaves the offer standing just short of a day', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 23 hours and 55 minutes ago
+      // And the visitor activated "Remove Ada" just now, so a button named "Bring Ada back" is
+      // present
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await letItAgeAndRemoveIt(user, 'Ada', 23 * HOUR + 55 * MINUTE)
+
+      // When 4 more minutes pass with the visitor doing nothing
+      await timePasses(4 * MINUTE)
+
+      // Then a button named "Bring Ada back" is still present — the held entry is 23h59m old,
+      // inside the very cutoff every visible row obeys, so the offer is exactly as workable as it
+      // was the moment it appeared. Nothing on screen counts down towards the boundary, and no
+      // tick short of it may retire the offer.
+      expect(offer('Ada')).toBeVisible()
+    })
+
+    it('takes the offer away, silently, once the held entry turns a day old', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 23 hours and 55 minutes ago
+      // And the visitor activated "Remove Ada" just now, so a button named "Bring Ada back" is
+      // present
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await letItAgeAndRemoveIt(user, 'Ada', 23 * HOUR + 55 * MINUTE)
+
+      // When 6 more minutes pass with the visitor doing nothing — six rather than four, which is
+      // the only difference between this scenario and the one above it, and the whole boundary
+      await timePasses(6 * MINUTE)
+
+      // Then no button named "Bring Ada back" is present: her held moment has crossed the day-old
+      // cutoff, so bringing her back could only hand the visitor a name the next tick would drop
+      expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
+      // And no text reading "Bring Ada back" is present anywhere on screen — not disabled, not
+      // greyed, not left behind as words without a button: simply absent, the way the Save control
+      // and the sort control are already absent when there is nothing for them to do
+      expect(screen.queryAllByText(offerFor('Ada'))).toHaveLength(0)
+      // …and the ending said nothing about itself either. All this seam can prove of "nothing is
+      // announced" is that no message arrived to replace the offer, so the region reads exactly
+      // what an emptied list has always read; whether a real screen reader stays quiet is VH-02.
+      const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+      expect(within(region).getByText(NOTHING_SAVED_TEXT)).toBeVisible()
+    })
+
+    it('keeps a name brought back ageing from its original moment, not from when it came back', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 23 hours and 50 minutes ago
+      // And the visitor activated "Remove Ada" just now, so a button named "Bring Ada back" is
+      // present
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await letItAgeAndRemoveIt(user, 'Ada', 23 * HOUR + 50 * MINUTE)
+
+      // When the visitor activates "Bring Ada back" — inside the cutoff, so the offer is there and
+      // certain to work
+      await user.click(offer('Ada'))
+
+      // Then the Saved names region contains a row for "Ada"
+      const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+      expect(within(region).getByText('Ada')).toBeInTheDocument()
+      expect(rowFor('Ada')).toBeInTheDocument()
+
+      // When 15 more minutes pass with the visitor doing nothing
+      await timePasses(15 * MINUTE)
+
+      // Then no row for "Ada" is present. She is 24h05m old measured from the moment she was
+      // first saved, and coming back was never a save: a restore that re-dated her would leave
+      // her on screen here for another day.
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+    })
+
+    it('takes the offer away without disturbing anything else on screen', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 23 hours and 55 minutes ago, then saved "Bob" just after.
+      // "Just after" is five minutes and not the same instant, and the criterion itself forces
+      // that: two saves under a stopped clock share one moment, so a Bob saved in the same breath
+      // as Ada would fall off in the same breath as her held entry ages — the offer would then end
+      // because the list moved (R41) and this scenario would prove nothing about the held entry's
+      // own clock (R42), and its last step, which requires Bob's row to survive, would fail.
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await timePasses(5 * MINUTE)
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+      // And the visitor activated "Remove Ada", so a button named "Bring Ada back" is present
+      await letItAgeAndRemoveIt(user, 'Ada', 23 * HOUR + 50 * MINUTE)
+
+      // When 6 more minutes pass with the visitor doing nothing
+      await timePasses(6 * MINUTE)
+
+      // Then no button named "Bring Ada back" is present — Ada's held moment is 24h01m old
+      expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
+      expect(screen.queryAllByText(offerFor('Ada'))).toHaveLength(0)
+      // And the Saved names region contains a row for "Bob" — his own moment is 23h56m old, so he
+      // stays, and nothing about the offer ending reached the list at all. This is the step that
+      // separates the two rules the offer can end by: no row left the list, so there was no write
+      // to the list, so a screen that ended the offer only when something fell off — the tidy
+      // mistake of clearing it inside expire — would still be showing it here.
+      expectRowsInDisplayOrder('Bob')
+      // …reading his own age, unchanged and still counting: 23h56m since he was saved
+      expectAgeReading('Bob', 'saved 23 hours ago')
     })
   })
 })
