@@ -69,6 +69,26 @@ const expectMarkerOn = (name: string) => {
   expect(within(rowFor(name)).getByText(MARKER_TEXT)).toBeInTheDocument()
 }
 
+// "the row for <name> shows the age reading <words>" — the reading is a node of its own, matched
+// as that node's whole text, so "saved 1 minute ago" can never be satisfied by "saved 11 minutes
+// ago" and a reading is never mistaken for the row's other words. It sits beside the rows for the
+// reason rowFor and expectMarkerOn do: undo-a-removal's block asks the same question of a row —
+// does the moment survive being brought back — and a second spelling of it is how the two would
+// drift apart.
+const expectAgeReading = (name: string, reading: string) => {
+  expect(within(rowFor(name)).getByText(reading)).toBeInTheDocument()
+}
+
+// "the Saved names region displays rows in the order …" — the whole display, asserted as an
+// ordered list and never as a set: the length comes first, so no scenario can pass against a
+// region holding a row it never mentioned. Up here for the same reason: sorting asks it of a view
+// and undo-a-removal asks it of a restored list, and one definition answers both.
+const expectRowsInDisplayOrder = (...names: string[]) => {
+  const rows = rowsInTheSavedNamesRegion()
+  expect(rows).toHaveLength(names.length)
+  names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
+}
+
 // "When <so much time> passes with the visitor doing nothing" — no interaction at all: the clock
 // moves, and whatever the screen does about that it does by itself. Shared by the two blocks that
 // move the clock (issues 01 and 04), each of which turns the narrow fake timers on for itself.
@@ -2055,13 +2075,6 @@ describe('Greeting screen', () => {
       vi.useRealTimers()
     })
 
-    // "the row for <name> shows the age reading <words>" — the reading is a node of its own,
-    // matched as that node's whole text, so "saved 1 minute ago" can never be satisfied by
-    // "saved 11 minutes ago" and a reading is never mistaken for the row's other words.
-    const expectAgeReading = (name: string, reading: string) => {
-      expect(within(rowFor(name)).getByText(reading)).toBeInTheDocument()
-    }
-
     it('reads "saved just now" on a name that has just been saved', async () => {
       const user = userEvent.setup()
 
@@ -2633,15 +2646,6 @@ describe('Greeting screen', () => {
     // wearing aria-pressed, or a checkbox whose label never reached it, does not answer here.
     const sortControl = (): HTMLElement => screen.getByRole('checkbox', { name: SORT_CONTROL })
 
-    // "the Saved names region displays rows in the order …" — the whole display, asserted as an
-    // ordered list and never as a set: the length comes first, so no scenario can pass against a
-    // region holding a row it never mentioned.
-    const expectRowsInDisplayOrder = (...names: string[]) => {
-      const rows = rowsInTheSavedNamesRegion()
-      expect(rows).toHaveLength(names.length)
-      names.forEach((name, index) => expect(rows[index]).toHaveTextContent(name))
-    }
-
     it('displays the names in save order, with the control off, until the visitor asks otherwise', async () => {
       const user = userEvent.setup()
 
@@ -2811,6 +2815,319 @@ describe('Greeting screen', () => {
       // control the visitor trips over and cannot identify, which is worse than the one the
       // criterion forbids.
       expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // undo-a-removal issue 01 — bringing back the last removed name (the walking skeleton).
+  //
+  // One acceptance test per Gherkin scenario, driven through the declared frontend seam: the
+  // rendered DOM, by role and accessible name. The offer's own name is written out from the
+  // Gherkin rather than read off the component, for the reason the rest of this file already
+  // gives — a scenario that asked the component what its control is called would pass whatever
+  // name the component happened to give it.
+  //
+  // The clock is faked here with the same narrow list the saved-at blocks use (ADR-0041): three
+  // of these scenarios are about a moment surviving a removal, and one is about a name leaving on
+  // its own. One consequence of a stopped clock is load-bearing and must not be "fixed": names
+  // saved without time in between share one instant, so where a scenario needs one name to be
+  // genuinely older than another, the clock is moved between the two saves rather than left to
+  // the tie-break — otherwise the tie-break, and not the restore, would be deciding which row
+  // carries "Newest".
+  //
+  // Three of the twelve pass on a screen that has an offer it cannot honour, and are kept as
+  // written rather than dropped: the two bookends, which deny an offer where none should exist
+  // ("offers nothing until a removal happens", "never offers back a name that fell off on its
+  // own"), and the greeting one, which an inert control satisfies by doing nothing at all. An
+  // absence assertion is worth most when the thing it denies exists, and all three became real
+  // the moment the other nine did (design.md §5.1). Nothing here was loosened to obtain a red
+  // bar, and if one of the three ever goes red the fix is the implementation, never the scenario.
+  // -------------------------------------------------------------------------------------------
+  describe('bringing back the last removed name', () => {
+    // The wall clock these scenarios save against — a fixed *local* instant built from parts, for
+    // the reason the saved-at blocks give: no scenario may pass or fail on the machine's timezone.
+    const AN_AFTERNOON = new Date(2026, 7, 23, 14, 20, 0, 0)
+
+    const MINUTE = 60_000
+    const HOUR = 60 * MINUTE
+
+    // "a button named 'Bring <name> back'" — the offer, copied from this issue's Gherkin.
+    const offerFor = (name: string) => `Bring ${name} back`
+
+    const offer = (name: string): HTMLElement =>
+      screen.getByRole('button', { name: offerFor(name) })
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+      vi.setSystemTime(AN_AFTERNOON)
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('offers nothing until a removal happens', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+
+      // Then no button named "Bring Ada back" is present
+      expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
+      // …and nothing anywhere on screen reads those words either: an offer rendered without its
+      // button role would be a promise the visitor cannot act on, which is worse than none.
+      expect(screen.queryAllByText(offerFor('Ada'))).toHaveLength(0)
+    })
+
+    it('offers to bring a removed name back, named for that name', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+
+      // When the visitor activates "Remove Bob"
+      await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+      // Then a button named "Bring Bob back" is present in the Saved names region
+      const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+      expect(within(region).getByRole('button', { name: offerFor('Bob') })).toBeVisible()
+      // …and it names the name that was removed and no other, so a screen offering back whichever
+      // row happens to be last does not answer here
+      expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
+    })
+
+    it('puts the offer between the heading and the rows', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob')
+
+      // When the visitor activates "Remove Bob"
+      await user.click(screen.getByRole('button', { name: 'Remove Bob' }))
+
+      // Then the button named "Bring Bob back" appears before the row for "Ada" in the Saved
+      // names region. Asserted by document position, the same way the region's own place after
+      // the status region is pinned above: the criterion is about reading order, which is what
+      // DOM order is, and never about a wrapper element or a class name.
+      const theOffer = offer('Bob')
+      expect(
+        theOffer.compareDocumentPosition(rowFor('Ada')) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+      // …and it is inside the region rather than merely before it, so an offer floating above the
+      // heading — outside the live region that announces it — does not answer here either
+      expect(
+        within(screen.getByRole('region', { name: SAVED_NAMES_REGION })).getByRole('button', {
+          name: offerFor('Bob'),
+        }),
+      ).toBe(theOffer)
+    })
+
+    it('brings the name back with its own saved-at moment, not a fresh one', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 10 minutes ago
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await timePasses(10 * MINUTE)
+      expectAgeReading('Ada', 'saved 10 minutes ago')
+      // And the visitor activated "Remove Ada" just now, so a button named "Bring Ada back" is
+      // present
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(offer('Ada')).toBeVisible()
+
+      // When the visitor activates "Bring Ada back"
+      await user.click(offer('Ada'))
+
+      // Then the row for "Ada" shows the age reading "saved 10 minutes ago" — the moment it
+      // already had. A restore that re-dated the entry would read "saved just now" here, which is
+      // the whole difference between bringing a name back and saving it again.
+      expectAgeReading('Ada', 'saved 10 minutes ago')
+    })
+
+    it('brings the name back to its original place, leaving every other row exactly as it was', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and "Bob", in that order …
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      // … with five minutes between the two saves, so that Ada is genuinely the older of the two
+      // rather than tied with Bob under a stopped clock — the tie-break would otherwise decide
+      // this scenario's Newest marker and its ordering for it.
+      await timePasses(5 * MINUTE)
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+      // … and the row for "Bob" shows the age reading "saved 5 minutes ago"
+      await timePasses(5 * MINUTE)
+      expectAgeReading('Bob', 'saved 5 minutes ago')
+      // And the visitor activated "Remove Ada", so a button named "Bring Ada back" is present
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(offer('Ada')).toBeVisible()
+
+      // When the visitor activates "Bring Ada back"
+      await user.click(offer('Ada'))
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob" — her own place, not
+      // the end of the list
+      expectRowsInDisplayOrder('Ada', 'Bob')
+      // And the row for "Bob" still shows the age reading "saved 5 minutes ago"
+      expectAgeReading('Bob', 'saved 5 minutes ago')
+      // And the Name field is described by text reading "Saved: Ada, Bob" — the hint names the
+      // list, so a name brought back reappears in it, in its own place
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAccessibleDescription(
+        'Saved: Ada, Bob',
+      )
+    })
+
+    it('does not let a name brought back steal the newest marker', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" then "Bob", in that order …
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      // … Bob five minutes later, so Bob is the newer by his own moment and not by a tie-break
+      await timePasses(5 * MINUTE)
+      await beGreeted(user, 'Bob')
+      await saveTheGreetedName(user, 'Bob')
+      // … and the row for "Bob" shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the visitor activated "Remove Ada", so a button named "Bring Ada back" is present
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(offer('Ada')).toBeVisible()
+
+      // When the visitor activates "Bring Ada back"
+      await user.click(offer('Ada'))
+
+      // Then the row for "Bob" still shows the label "Newest"
+      expectMarkerOn('Bob')
+      // And the row for "Ada" does not show the label "Newest" — she came back with the moment
+      // she had, so she is still the older of the two
+      expect(within(rowFor('Ada')).queryByText(MARKER_TEXT)).toBeNull()
+    })
+
+    it('moves focus to the Saved names region, which shows the name back in it', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      // And the visitor activated "Remove Ada", so a button named "Bring Ada back" is present
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(offer('Ada')).toBeVisible()
+
+      // When the visitor activates "Bring Ada back"
+      await user.click(offer('Ada'))
+
+      // Then the Saved names region has focus — the control that was pressed no longer exists, so
+      // focus has to be put somewhere deliberately, and it goes where a removal already sends it
+      const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+      expect(region).toHaveFocus()
+      // And the Saved names region contains a row for "Ada"
+      expect(within(region).getByText('Ada')).toBeInTheDocument()
+      expect(rowFor('Ada')).toBeInTheDocument()
+    })
+
+    it('spends the offer once it is pressed', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      // And the visitor activated "Remove Ada", so a button named "Bring Ada back" is present
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(offer('Ada')).toBeVisible()
+
+      // When the visitor activates "Bring Ada back"
+      await user.click(offer('Ada'))
+
+      // Then no button named "Bring Ada back" is present — there is no undoing the undo, and
+      // pressing it a second time could only put a second copy of Ada into the list
+      expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
+      // …and the words are gone from the screen altogether, not merely un-pressable
+      expect(screen.queryAllByText(offerFor('Ada'))).toHaveLength(0)
+    })
+
+    it('does not change who the visitor is greeted as', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" and is currently greeted "Hello, Bob"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await beGreeted(user, 'Bob')
+      // And the visitor activated "Remove Ada", so a button named "Bring Ada back" is present
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+      expect(offer('Ada')).toBeVisible()
+
+      // When the visitor activates "Bring Ada back"
+      await user.click(offer('Ada'))
+
+      // Then the greeting still reads "Hello, Bob" — bringing a name back is a write to the list,
+      // and the list is not who the visitor is
+      expect(screen.getByRole('status')).toHaveTextContent(exactly('Hello, Bob'), verbatim)
+    })
+
+    it('shows the empty state and the offer together when the last name is removed', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada" only
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+
+      // When the visitor activates "Remove Ada"
+      await user.click(screen.getByRole('button', { name: 'Remove Ada' }))
+
+      // Then the Saved names region reads "No names saved yet." — nothing is saved, which is true
+      const region = screen.getByRole('region', { name: SAVED_NAMES_REGION })
+      expect(within(region).getByText(NOTHING_SAVED_TEXT)).toBeVisible()
+      // And a button named "Bring Ada back" is present — the way back is right there
+      expect(within(region).getByRole('button', { name: offerFor('Ada') })).toBeVisible()
+      // And no checkbox named "Newest first" is present: there is still no order to choose
+      // between, so the sort control stays absent
+      expect(screen.queryByRole('checkbox', { name: 'Newest first' })).toBeNull()
+    })
+
+    it('never overfills the list, even bringing a name back to a list that was full', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor has saved "Ada", "Bob", "Cleo", "Dan" and "Eve"
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada', 'Bob', 'Cleo', 'Dan', 'Eve')
+      // And the visitor activated "Remove Eve", so a button named "Bring Eve back" is present
+      await user.click(screen.getByRole('button', { name: 'Remove Eve' }))
+      expect(offer('Eve')).toBeVisible()
+
+      // When the visitor activates "Bring Eve back"
+      await user.click(offer('Eve'))
+
+      // Then the Saved names region displays rows in the order "Ada", "Bob", "Cleo", "Dan", "Eve"
+      // — five of five, the list exactly as it read before the removal
+      expectRowsInDisplayOrder('Ada', 'Bob', 'Cleo', 'Dan', 'Eve')
+      // And the Saved names region does not read "Five names is the limit. Remove one to save
+      // another." The removal freed exactly one slot and the restore filled exactly that slot, so
+      // the limit was never at risk — and a restore that refused, or that counted, would say so.
+      expect(screen.queryByText(FULL_LIST_TEXT)).toBeNull()
+    })
+
+    it('never offers back a name that fell off on its own', async () => {
+      const user = userEvent.setup()
+
+      // Given the visitor saved "Ada" 23 hours and 58 minutes ago
+      render(<GreetingScreen />)
+      await saveNamesInOrder(user, 'Ada')
+      await timePasses(23 * HOUR + 58 * MINUTE)
+      // … and she is still on screen, so the row really does leave during the When below
+      expect(rowFor('Ada')).toBeInTheDocument()
+
+      // When 3 more minutes pass with the visitor doing nothing
+      await timePasses(3 * MINUTE)
+
+      // Then no row for "Ada" is present
+      expect(rowsInTheSavedNamesRegion()).toHaveLength(0)
+      // And no button named "Bring Ada back" is present — the visitor activated nothing, so
+      // nothing was taken from them by mistake and there is nothing to take back
+      expect(screen.queryByRole('button', { name: offerFor('Ada') })).toBeNull()
+      expect(screen.queryAllByText(offerFor('Ada'))).toHaveLength(0)
     })
   })
 })

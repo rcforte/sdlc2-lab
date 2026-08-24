@@ -2,6 +2,7 @@ import {
   ageReadingText,
   ALERT_MESSAGE,
   alertText,
+  bringBack,
   expire,
   greetAgain,
   greetingText,
@@ -319,5 +320,46 @@ describe('Visit', () => {
     const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
 
     expect(remove(saved, 'Zoe')).toBe(saved)
+  })
+
+  // -----------------------------------------------------------------------------------------
+  // undo-a-removal — the two answers about bringing a name back that no scenario can reach.
+  // Everything a visitor perceives about the offer is a scenario in GreetingScreen.test.tsx;
+  // what sits here is the value equality the five-name limit is inherited from, and the guard on
+  // a command the screen never offers (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-35, INV-36: bringing back is the removal's exact inverse, at the middle of a full list
+  // where an off-by-one shows. This is the assertion the limit rests on: no code counts the list
+  // on the bring-back path (INV-17 keeps save as its only enforcer), and it needs none, because
+  // the value that comes back is the value that satisfied the limit a moment earlier — same
+  // length, same members, same order, and the same entry objects, so no moment was re-derived.
+  // The seam proves the visitor-facing half (issue 01's five-name scenario); this proves the
+  // equality it inherits from.
+  it('puts the removed entry back exactly where it was, entry objects and all (INV-35, INV-36)', () => {
+    const names = ['Ada', 'Bob', 'Cleo', 'Dan', 'Eve']
+    const full = names.reduce(
+      (visit, name, index) => save(submit(visit, name), AN_INSTANT + index * 60_000),
+      newVisit,
+    )
+
+    const restored = bringBack(remove(full, 'Cleo'))
+
+    expect(restored.savedNames).toEqual(full.savedNames)
+    // …and the entries are the very objects the list already held, never rebuilt ones: a saved-at
+    // moment cannot survive being reconstructed from anything the removal did not keep.
+    restored.savedNames.forEach((entry, index) => expect(entry).toBe(full.savedNames[index]))
+  })
+
+  // INV-34: bringBack is total. No scenario can reach this, because there is no offer on screen
+  // to press when there is no last removal — the rule exists so that a second caller cannot make
+  // a restore out of nothing. Returned by identity, so a press that could do nothing is not a
+  // write of the list either (INV-21) and the region is not asked to re-announce contents that
+  // did not change. It is the same guard idiom save, remove and greetAgain already carry.
+  it('does nothing when there is no removal to take back (INV-34)', () => {
+    const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
+
+    expect(bringBack(saved)).toBe(saved)
+    expect(bringBack(saved).savedNamesRevision).toBe(saved.savedNamesRevision)
   })
 })
