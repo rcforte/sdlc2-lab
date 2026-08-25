@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Undo a removal — mockup</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 2rem;
+  }
+  h1.page-title {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+  p.intro {
+    color: #444;
+    max-width: 70ch;
+    margin: 0 0 2rem;
+  }
+  .story {
+    max-width: 640px;
+    margin: 0 auto 2.5rem;
+  }
+  .story h2 {
+    font-size: 1rem;
+    margin: 0 0 0.25rem;
+  }
+  .story .caption {
+    font-size: 0.85rem;
+    color: #555;
+    margin: 0 0 0.75rem;
+  }
+  .screen {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+    box-sizing: border-box;
+  }
+  .screen .app-heading {
+    font-size: 0.95rem;
+    border-bottom: 1px dashed #ddd;
+    padding-bottom: 0.6rem;
+    margin: 0 0 1rem;
+  }
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-size: 1rem;
+    border: 1px solid #595959;
+    border-radius: 3px;
+    margin-bottom: 0.4rem;
+  }
+  .hint {
+    font-size: 0.85rem;
+    color: #333;
+    margin: 0 0 0.75rem;
+  }
+  button {
+    font-size: 0.9rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #333;
+    border-radius: 3px;
+    background: #eee;
+    cursor: default;
+  }
+  form button {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+  }
+  .status-region {
+    margin: 1rem 0 0;
+    padding: 0.5rem 0;
+    min-height: 1.2rem;
+    font-weight: bold;
+  }
+  .saved-names-region {
+    margin-top: 1.25rem;
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+  }
+  .saved-names-region h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+    margin: 0 0 0.5rem;
+  }
+  .saved-names-region .empty {
+    margin: 0 0 0.75rem;
+  }
+  .saved-names-region .refusal {
+    margin: 0 0 0.75rem;
+    color: #7a0000;
+    font-weight: bold;
+  }
+  .offer {
+    margin: 0 0 0.75rem;
+  }
+  .offer button {
+    background: #eef4ff;
+    border-color: #1a4fd6;
+    color: #113a9c;
+    font-weight: bold;
+  }
+  .sort-control {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+  }
+  .sort-control input {
+    margin: 0;
+  }
+  ul.rows {
+    list-style: none;
+    margin: 0 0 0.75rem;
+    padding: 0;
+  }
+  ul.rows li.row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  ul.rows li.row:last-child {
+    border-bottom: none;
+  }
+  .row .row-left {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .row .row-name {
+    font-weight: bold;
+    min-width: 3.5rem;
+  }
+  .row .row-age {
+    font-size: 0.8rem;
+    color: #555;
+  }
+  .row .row-marker {
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: #1a4fd6;
+    border: 1px solid #1a4fd6;
+    border-radius: 3px;
+    padding: 0.05rem 0.35rem;
+  }
+  .row .row-controls button {
+    margin-left: 0.4rem;
+  }
+  .save-control {
+    margin-top: 0.25rem;
+  }
+  .role-note {
+    font-size: 0.75rem;
+    /* #888 on #fff measures ~3.5:1, below the 4.5:1 WCAG AA text floor. #595959 measures ~7:1. */
+    color: #595959;
+    margin-top: 0.5rem;
+  }
+  .is-focused {
+    outline: 3px solid #1a4fd6;
+    outline-offset: 2px;
+  }
+  /* ---- UX addition (ux node, round 1): documentation chrome only. No new colour tokens —
+     every value below reuses one already defined above. ---- */
+  .ux-doc {
+    max-width: 860px;
+    margin: 0 auto 2.5rem;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+  }
+  .ux-doc h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+  .ux-doc h2:first-child { margin-top: 0; }
+  .ux-doc h3 { font-size: 0.9rem; margin: 1rem 0 0.4rem; }
+  .ux-doc p, .ux-doc li { font-size: 0.88rem; color: #333; line-height: 1.5; }
+  .ux-doc pre {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 0.75rem 1rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    overflow-x: auto;
+    color: #1a1a1a;
+  }
+  .ux-doc table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 0.5rem 0 1rem; }
+  .ux-doc th, .ux-doc td {
+    border: 1px solid #ddd;
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  .ux-doc th { background: #eee; color: #1a1a1a; }
+  .ux-doc code { background: #eee; padding: 0.05rem 0.3rem; border-radius: 2px; font-size: 0.85em; }
+  .state-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: bold;
+    color: #113a9c;
+    background: #eef4ff;
+    border: 1px solid #1a4fd6;
+    border-radius: 3px;
+    padding: 0.05rem 0.4rem;
+    margin: 0 0 0.5rem;
+  }
+  .nav-note {
+    font-size: 0.75rem;
+    color: #595959;
+    margin: 0.4rem 0 0;
+    border-top: 1px dashed #ddd;
+    padding-top: 0.4rem;
+  }
+  .nav-note strong { color: #1a1a1a; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Undo a removal — happy-path mockup</h1>
+<p class="intro">
+  One screen per user story's happy-path scenario (feature.md, User stories). Lo-fi, self-contained,
+  no build step. Every control named by an acceptance criterion is present on its story's screen.
+  The offer — a button reading "Bring &lt;name&gt; back" — sits between the "Saved names" heading and
+  the rows, exactly where a refusal message already goes (seed, Agreed scope). The row controls
+  carried over from earlier features — "Greet me again as &lt;name&gt;", "Remove &lt;name&gt;" — and
+  the age reading and Newest marker carried from `saved-at` appear on every screen, since each one
+  depicts the same finished Saved names region, only with different data.
+</p>
+<p class="intro">
+  <strong>ux node addition (round 1):</strong> the block below this paragraph is the experience
+  spec — flow, information architecture, and the full state matrix — added by the ux node without
+  touching the po node's four screens further down. After it, every screen (existing and new)
+  carries a <span class="state-badge">state badge</span> naming which cell of the state matrix it
+  is, and a "you are here / way out" nav note. Seven new screens are added, one labelled per state
+  the po's happy-path set did not need to show: an offer standing over an emptied list, the offer
+  at the five-name boundary in both directions, the over-limit refusal on its own, a replaced
+  offer, an offer standing beside an unrelated field error, and the offer one tick before it ages
+  out. No existing screen's markup changes.
+</p>
+
+<!-- ============================================================ -->
+<div class="ux-doc">
+  <h2>1. Experience summary</h2>
+  <p>
+    <strong>Actor.</strong> The visitor — one person, carried unchanged from `greet-visitor`,
+    `saved-name`, `remembered-names` and `saved-at`. No second persona exists on this screen.
+  </p>
+  <p>
+    <strong>Job to be done.</strong> Recover instantly from a mis-pressed Remove, without losing
+    the name's saved-at moment or its place in the list, and without the recovery ever costing
+    more than the one press that broke it (feature.md, Persona).
+  </p>
+  <p>
+    <strong>Entry.</strong> There is no separate entry point — the offer can only ever appear as a
+    consequence of a removal the visitor themselves just performed, inside the one screen that
+    already exists. There is nothing to navigate <em>to</em>.
+  </p>
+  <p>
+    <strong>Exit.</strong> Three ways, all designed, none a dead end: (a) the visitor presses the
+    offer and the entry is back, whole; (b) the offer is superseded by something that actually
+    changed the list — a further removal, a successful save, or a name falling off — and the
+    screen returns to its ordinary state with nothing to press; (c) the held entry itself crosses
+    the same day-old cutoff every row obeys, and the offer goes, silently. Every exit lands back
+    on the one screen the visitor never left.
+  </p>
+  <p>
+    <strong>Success metric.</strong> A restored row is byte-for-byte the row that was removed —
+    same text, same saved-at moment, same position, same (non-)Newest marker — reached in exactly
+    one activation, with the rest of the screen (greeting, other rows, the limit) provably
+    untouched. Story 01's scenarios are this metric, written as tests.
+  </p>
+
+  <h2>2. Primary flow</h2>
+  <p>Happy path plus every recovery branch story 01–03 name. No branch re-enters at a different
+  screen: there is only the one.</p>
+  <pre>
+                         ┌─────────────────────────────┐
+                         │   Saved names region, idle   │  ◄─── start / most exits land here
+                         │   (0–5 rows, no offer)       │
+                         └───────────────┬───────────────┘
+                                          │ visitor activates "Remove &lt;X&gt;"
+                                          ▼
+                         ┌─────────────────────────────┐
+                         │  Offer standing: "Bring &lt;X&gt;  │  focus → region (P19); region
+                         │  back" between heading & rows │  announces the new list once
+                         └───┬───────┬───────┬───────────┘
+      ┌──────────────────────┘       │       └───────────────────────┐
+      │ visitor presses the offer    │ visitor does anything that     │ 4 minutes short of a day
+      │ (only way to leave via the   │ does NOT actually change the   │ pass with the held entry's
+      │ control itself)              │ list contents:                 │ own moment ageing past 24h
+      ▼                               │  · sort toggle                 ▼
+┌───────────────────────┐             │  · blank submission           ┌───────────────────────┐
+│ Entry restored whole:  │             │  · greet-again                │ Offer ends, silently.  │
+│ same text/moment/place;│             │  · a REFUSED save             │ No message anywhere    │
+│ offer control gone;    │             │ (already-saved or full)       │ (seed, Out of scope).  │
+│ clears any refusal;    │             │        ↺ offer still stands,  └──────────┬──────────────┘
+│ focus → region         │             │        loop back to same box             │
+└───────────┬────────────┘             │                                          │
+             │                          │ visitor activates "Remove &lt;Y&gt;"           │
+             │                          │ (a further removal — replaces,          │
+             │                          │  never stacks)                          │
+             │                          ▼                                          │
+             │              ┌─────────────────────────────┐                       │
+             │              │ Offer replaced: "Bring &lt;Y&gt;   │                       │
+             │              │ back"; "Bring &lt;X&gt; back" gone │                       │
+             │              └───────────────┬───────────────┘                     │
+             │                              │ (same three exits as above,          │
+             │                              │  recursively)                        │
+             │  visitor performs a SUCCESSFUL save, or a name falls off on its own  │
+             │◄─────────────────────────────┴───────────────────────────────────────┘
+             ▼
+   back to "Saved names region, idle" — offer ended, nothing to press, nothing said about why
+  </pre>
+  <p>
+    <strong>No dead ends.</strong> Every box above either has an outgoing arrow the visitor can
+    trigger, or is the idle state itself (which always offers Remove/Greet/Save/sort as the
+    ordinary next actions, carried unchanged from earlier features). The one branch that does not
+    lead back to a live offer — ageing out — still lands on the same idle screen with every
+    ordinary control intact; see Handoff AC §7 for why that is a designed stop, not a trap.
+  </p>
+
+  <h2>3. Information architecture</h2>
+  <p>
+    <strong>One route, one screen, always.</strong> The app is `src/App.tsx`: a single
+    <code>&lt;main&gt;</code> mounting a banner and one <code>GreetingScreen</code>, no router, no
+    persistence (seed, Out of scope). This feature adds no route and no screen — it adds a
+    transient control inside the one landmark region that already exists. "Where am I" never
+    changes; "where can I go" is answered by whichever finite set of controls the current state
+    renders, never by a link elsewhere, because there is nowhere else.
+  </p>
+  <table>
+    <tr><th>Landmark</th><th>Always present?</th><th>Role / name</th><th>What varies</th></tr>
+    <tr><td>Banner</td><td>yes</td><td><code>&lt;header&gt;</code> / h1 "sdlc2 lab"</td><td>nothing — untouched by this feature</td></tr>
+    <tr><td>Name form</td><td>yes</td><td><code>&lt;form&gt;</code>, field labelled "Name"</td><td>field description (alert id, hint id) — the hint text reflects a brought-back name (story 01)</td></tr>
+    <tr><td>Status region</td><td>yes</td><td><code>role="status"</code>, polite</td><td>greeting text only — never touched by removal or the offer (story 01, "does not change who the visitor is greeted as")</td></tr>
+    <tr><td>Saved names region</td><td>yes</td><td><code>&lt;section aria-labelledby&gt;</code> "Saved names", polite live</td><td><strong>everything this feature adds</strong>: the offer, the refusal, the rows, the sort control, the Save control — see state matrix, §4</td></tr>
+  </table>
+  <p>
+    <strong>Deep-linkability.</strong> The one route (<code>/</code>) is trivially deep-linkable:
+    it always resolves to the same idle state, because nothing here persists across a reload
+    (seed, Out of scope — confirmed, not a gap). That is a designed property carried from the
+    seed, not a limitation this spec introduces.
+  </p>
+
+  <h2>4. State matrix</h2>
+  <p>
+    The Saved names region is the only landmark this feature adds states to. Rows below are the
+    concrete states that region can be in; columns are the rubric's generic state categories.
+    Every row names its screen (mockup anchor below) and its way out.
+  </p>
+  <table>
+    <tr><th>#</th><th>Category</th><th>Concrete state</th><th>Screen</th><th>Way out</th></tr>
+    <tr><td>1</td><td>Empty</td><td>0 rows, no offer (e.g. never saved, or offer already spent with nothing re-saved)</td><td><em>carried, unchanged</em> — same empty state `remembered-names` already ships</td><td>type a name → Greet me → Save this name</td></tr>
+    <tr><td>2</td><td>Empty + offer</td><td>Last row just removed, list now empty, offer standing</td><td>§ story-01c below</td><td>press the offer (whole restore) <em>or</em> Save this name (fresh save, if still greeted)</td></tr>
+    <tr><td>3</td><td>Partial</td><td>1–4 rows, no offer</td><td><em>carried</em> — story-02/03's "Given" states</td><td>Remove any row (starts an offer) · Save another (if &lt;5)</td></tr>
+    <tr><td>4</td><td>Partial + offer</td><td>1–4 rows, offer standing for the just-removed one</td><td>story-01b (existing)</td><td>press the offer, or keep working — every non-list-moving action leaves it standing (story 02)</td></tr>
+    <tr><td>5</td><td>Loading</td><td><strong>N/A — by design.</strong> Every transition here is a synchronous state update (`setVisit`); there is no network call and no persistence (seed, Out of scope) for anything to be in flight during. Inventing a spinner would contradict the seed's own scope, not fill a gap.</td><td>—</td><td>—</td></tr>
+    <tr><td>6</td><td>Error (already-saved) + offer</td><td>A refused save ("&lt;X&gt; is already saved.") while an unrelated offer stands</td><td>story-02 (existing)</td><td>press the offer (also clears the refusal) <em>or</em> greet a different, not-yet-saved name and retry Save</td></tr>
+    <tr><td>7</td><td>Error (over-limit), no offer</td><td>Five rows, a sixth save refused ("Five names is the limit…"), no offer live — structurally impossible for this to coexist with a live offer (po Decisions: a successful save always ends the offer first)</td><td>§ story-01f below</td><td>Remove any row — which both fixes the limit and leaves a fresh offer as a safety net</td></tr>
+    <tr><td>7b</td><td>Over-limit, offer standing at 4/5</td><td>The row just removed from a full list is one press from restoring it to five again</td><td>§ story-01d below</td><td>press the offer → row 8</td></tr>
+    <tr><td>8</td><td>Success, restored at the limit</td><td>Offer pressed from 4/5: back to 5/5, offer spent, no over-limit refusal shown</td><td>§ story-01e below</td><td>Remove any row to start a fresh offer, same as state 3→4</td></tr>
+    <tr><td>9</td><td>Success, general restore</td><td>Offer pressed: entry back whole, offer spent, focus on region</td><td>story-01 (existing)</td><td>Remove any row to start a fresh offer</td></tr>
+    <tr><td>10</td><td>Offer replaced (a transition, not a new category)</td><td>A second removal supersedes the first offer; never stacks, never a history</td><td>§ story-02b below</td><td>press the (new) offer, or keep working</td></tr>
+    <tr><td>11</td><td>Error (blank field) + offer, unrelated regions</td><td>A blank Name submission's field-level alert coexists with a standing offer — proves the two never interfere</td><td>§ story-02c below</td><td>type a name and Greet me again, offer untouched throughout</td></tr>
+    <tr><td>12</td><td>Offer, near-expiry boundary</td><td>Held entry 23h59m old: offer still present, one tick from gone</td><td>§ story-03b below</td><td>press the offer now — it is certain to work up to and excluding the boundary</td></tr>
+    <tr><td>13</td><td>Empty, offer just expired</td><td>Held entry crossed 24h: offer gone, silently; nothing else on screen disturbed</td><td>story-03 (existing)</td><td><strong>designed dead end for the offer only</strong> — retype, Greet me, Save this name remain the way back (Handoff AC §7)</td></tr>
+  </table>
+
+  <h3>5. Wireframe — region anatomy (applies to every state above)</h3>
+  <pre>
+┌─ &lt;section aria-labelledby="…" aria-live="polite" tabindex="-1"&gt; ───────────┐
+│ h2  Saved names                                                          │
+│ [ if refusal ]      "&lt;X&gt; is already saved." / "Five names is the limit…" │
+│ [ if offer ]         ( Bring &lt;X&gt; back )  ← PRIMARY ACTION when present    │
+│ [ if rows &gt; 0 ]     [ ] Newest first                                     │
+│ ┌ row ─────────────────────────────────────────────────────────────┐    │
+│ │ Name   age (aria-hidden)  [Newest]?   (Greet me again as X) (Remove X)│    │
+│ └────────────────────────────────────────────────────────────────────┘    │
+│  … one row per saved name, or "No names saved yet." if none              │
+│ [ if greeted ]      ( Save this name )                                   │
+└────────────────────────────────────────────────────────────────────────┘
+  </pre>
+  <p>
+    Exactly one primary action is ever live inside this region at a time: the offer, when
+    present, outranks Save as the thing a visitor who just mis-pressed actually wants — which is
+    why it sits above the rows, in the refusal's own slot, rather than beside Save at the bottom.
+  </p>
+
+  <h2>6. A11y &amp; responsive notes</h2>
+  <ul>
+    <li><strong>Heading order.</strong> h1 "sdlc2 lab" (banner) → h2 "Saved names" (region). This
+    feature adds no heading of its own — the offer is a button inside the existing h2's section,
+    never a heading. (The mockup's own <code>&lt;h1 class="page-title"&gt;</code> and the
+    <code>&lt;p class="app-heading"&gt;</code> per screen are documentation chrome standing in for
+    the real app's h1; they are not part of the interface under design.)</li>
+    <li><strong>Keyboard path.</strong> Name field → Greet me → [offer button, when present] →
+    [Newest first, when rows &gt; 0] → row 1: Greet-again, Remove → row 2: … → Save this name
+    (when greeted). The offer sits before the sort control and the rows in both the visual order
+    and the tab order — the same position (seed, Agreed scope) — so a keyboard visitor meets it
+    before either. Remove is always the last stop on its row, one tab past Greet-again, on
+    purpose (seed, Capability) — this feature does not change that order, it only adds one more
+    stop before the rows.</li>
+    <li><strong>Focus management.</strong> Two, and only two, programmatic focus moves exist on
+    this screen: after a removal, and after a bring-back, both send focus to the region itself
+    (<code>tabindex="-1"</code>), which then speaks its own new contents once. Nothing sends focus
+    into a restored row — that would land a visitor one tab-stop from the Remove control that
+    started this (feature.md, Decisions). A refused save leaves focus exactly where the click put
+    it (the Save button), never moved.</li>
+    <li><strong>Visible focus.</strong> The region's programmatic focus and the Save button's
+    retained focus both get a 3px solid outline (<code>.is-focused</code>, already defined) —
+    reused, not reinvented, on every new screen below that lands focus somewhere.</li>
+    <li><strong>Never colour alone.</strong> The refusal is red text, but the words carry the
+    refusal ("Five names is the limit…"), not the colour. "Newest" is a word, not a badge colour
+    alone. The offer's button uses the same blue token as every other affordance in this file
+    (<code>#1a4fd6</code> / <code>#eef4ff</code>) — no colour is the sole carrier of any state
+    anywhere on this screen.</li>
+    <li><strong>Contrast.</strong> No new colour token is introduced by this feature; every value
+    used above (<code>#7a0000</code> refusal, <code>#1a4fd6</code>/<code>#113a9c</code> offer,
+    <code>#595959</code> secondary text) is already in this file's stylesheet and already
+    documented there as meeting the 4.5:1 text floor.</li>
+    <li><strong>Responsive.</strong> No discrete breakpoint exists or is needed: <code>ul.rows
+    li.row</code> is already <code>flex-wrap</code>, so row controls wrap under the name at
+    narrow widths without ever changing DOM order — keyboard/tab order therefore cannot diverge
+    from visual order at any width. The offer button is a single inline element with the same
+    fluid behaviour; it never needs its own breakpoint.</li>
+  </ul>
+
+  <h2>7. Handoff AC — what the end-to-end proof must show</h2>
+  <ol>
+    <li>A visitor who mis-presses Remove can undo it in exactly one further press, with no
+    instruction on screen or off it — the restored row is indistinguishable from the row before
+    removal (text, saved-at moment, position, Newest/not).</li>
+    <li>From every state in the matrix above there is a visible next action; nothing dead-ends.
+    The single point with no automatic way back — the offer spent or aged out — always leaves the
+    ordinary create-a-new-entry path (type → Greet me → Save this name) undisturbed and reachable;
+    it is a designed stop for the <em>offer</em>, never a trap for the <em>visitor</em>.</li>
+    <li>The offer, whenever present, precedes the sort control and every row in both the visual
+    DOM order and the tab order, and is never reachable by a keyboard shortcut (seed, Out of
+    scope: no global key handler exists or should be added).</li>
+    <li>Focus after a removal and focus after a bring-back both land on the Saved names region,
+    and its announced contents differ each time — proving the "announce once, never twice, never
+    silently" rule holds across both triggers, not just one.</li>
+    <li>A full list's refusal and a live offer are never observed together — provable directly
+    from state 7's note: a successful save always ends whatever offer preceded it, so a refusal
+    and a live offer never coexist (rows 6 and 7 differ only in which refusal, never in whether an
+    offer is also live).</li>
+    <li>No state anywhere signals success, refusal or "newest" by colour alone; each has
+    accompanying text a screen reader or a forced-colours visitor also gets.</li>
+    <li>The one true dead end — an aged-out offer — produces no message, no flash, no residue
+    (story 03's own assertion): the E2E proof for it is an absence, not a presence.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01">Story 01 — Bring back the last removed name (walking skeleton)</h2>
+  <span class="state-badge">state matrix row 9 — success, general restore</span>
+  <p class="caption">
+    Scenario "Bringing the name back moves focus to the Saved names region, which shows the name back
+    in it". The visitor removed "Ada" by mistake and has just activated "Bring Ada back". Ada is back
+    in her original place, ahead of Bob, carrying the same age reading she had before removal. The
+    region itself has focus — the same rule a removal already follows, because the control that was
+    pressed no longer exists.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01-name">Name</label>
+      <input type="text" id="s01-name" value="" aria-describedby="s01-hint">
+      <p class="hint" id="s01-hint">Saved: Ada, Bob</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <div class="sort-control">
+        <input type="checkbox" id="s01-sort">
+        <label for="s01-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 10 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 5 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      "Bring Ada back" is gone — the control that was pressed is spent. Ada reads "saved 10 minutes
+      ago", exactly what she read before she was removed, and Bob still carries "Newest": bringing an
+      older name back never steals the marker from one that is genuinely more recent.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, focused. <strong>Way
+      out from here:</strong> the offer is spent — Remove any row to start a fresh one, or Greet me
+      → Save this name to add another.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01b">Story 01 — the offer itself, immediately after a removal</h2>
+  <span class="state-badge">state matrix row 4 — partial + offer</span>
+  <p class="caption">
+    Scenario "Removing a name offers to bring it back, named for that name" / "The offer sits between
+    the heading and the rows". The visitor has just activated "Remove Ada". Her row is gone; in its
+    place, above Bob's row and below the heading, sits the offer — named for the name it will
+    restore, exactly where the full-list or duplicate refusal message would otherwise sit.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01b-name">Name</label>
+      <input type="text" id="s01b-name" value="" aria-describedby="s01b-hint">
+      <p class="hint" id="s01b-hint">Saved: Bob</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <p class="offer"><button type="button">Bring Ada back</button></p>
+      <div class="sort-control">
+        <input type="checkbox" id="s01b-sort">
+        <label for="s01b-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 5 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      One control, named "Bring Ada back" so a visitor who cannot see that Ada's row vanished is still
+      told what pressing it will do. The greeting still reads "Hello, Bob" — removing, and the offer it
+      leaves, never touch who the visitor is greeted as.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, focused, offer live.
+      <strong>Way out from here:</strong> press "Bring Ada back" (→ story 01's restored screen above)
+      · or keep working — every non-list-moving action leaves this offer standing (story 02, below).
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01c">Story 01 — the offer standing over an emptied list</h2>
+  <span class="state-badge">state matrix row 2 — empty + offer</span>
+  <p class="caption">
+    Scenario "Removing the last saved name shows the empty state and the offer together". Ada was the
+    only saved name; the visitor has just activated "Remove Ada". The region reads "No names saved
+    yet." — true, nothing is saved — and the offer sits right above it, naming the way back. No sort
+    control: there is still no order to choose between with zero rows.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01c-name">Name</label>
+      <input type="text" id="s01c-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <p class="offer"><button type="button">Bring Ada back</button></p>
+      <p class="empty">No names saved yet.</p>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      No "Newest first" checkbox — a rule this feature does not change (seed, Agreed scope: "the sort
+      control stays absent, because there is still no order to choose between"). "Save this name" is
+      still here too, because the visitor is still greeted "Ada" — a second, imperfect way back (a
+      fresh save, a new moment) that exists alongside the offer's perfect one.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, focused, empty, offer
+      live. <strong>Way out from here:</strong> press "Bring Ada back" for the whole restore, or Save
+      this name for a fresh save of the same text.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01d">Story 01 — offer standing at four of five, about to restore the fifth</h2>
+  <span class="state-badge">state matrix row 7b — over-limit, offer standing at 4/5</span>
+  <p class="caption">
+    Scenario "Bringing a name back never overfills the list, even when it was at the five-name limit"
+    (the Given, just before the When). Ada, Bob, Cleo, Dan and Eve were all saved; the visitor has just
+    activated "Remove Eve". Four rows remain, Dan now carries "Newest" in Eve's place, and the offer
+    names the one row waiting to come back.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01d-name">Name</label>
+      <input type="text" id="s01d-name" value="" aria-describedby="s01d-hint">
+      <p class="hint" id="s01d-hint">Saved: Ada, Bob, Cleo, Dan</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Eve</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <p class="offer"><button type="button">Bring Eve back</button></p>
+      <div class="sort-control">
+        <input type="checkbox" id="s01d-sort">
+        <label for="s01d-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 20 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 15 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Cleo</span>
+            <span class="row-age" aria-hidden="true">saved 10 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+            <button type="button">Remove Cleo</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Dan</span>
+            <span class="row-age" aria-hidden="true">saved 5 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Dan</button>
+            <button type="button">Remove Dan</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Only four rows, so nothing here refuses a save on the limit's account — but that is not why the
+      offer is trustworthy: it is trustworthy because a successful save would end it first (po
+      Decisions), so "full again while this offer stands" can never actually happen.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, focused, 4/5, offer
+      live. <strong>Way out from here:</strong> press "Bring Eve back" → story 01e, five of five,
+      offer spent.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01e">Story 01 — restored to five of five, offer spent</h2>
+  <span class="state-badge">state matrix row 8 — success, restored at the limit</span>
+  <p class="caption">
+    Scenario "Bringing a name back never overfills the list, even when it was at the five-name limit"
+    (the Then). The visitor has just activated "Bring Eve back". The list reads "Ada, Bob, Cleo, Dan,
+    Eve" — Eve's original place, restored — and nowhere does the region say "Five names is the limit.
+    Remove one to save another.": the fifth slot was always hers, freed by her own removal, never
+    fought over.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01e-name">Name</label>
+      <input type="text" id="s01e-name" value="" aria-describedby="s01e-hint">
+      <p class="hint" id="s01e-hint">Saved: Ada, Bob, Cleo, Dan, Eve</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Eve</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <div class="sort-control">
+        <input type="checkbox" id="s01e-sort">
+        <label for="s01e-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 20 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 15 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Cleo</span>
+            <span class="row-age" aria-hidden="true">saved 10 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+            <button type="button">Remove Cleo</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Dan</span>
+            <span class="row-age" aria-hidden="true">saved 5 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Dan</button>
+            <button type="button">Remove Dan</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Eve</span>
+            <span class="row-age" aria-hidden="true">saved just now</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Eve</button>
+            <button type="button">Remove Eve</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      "Bring Eve back" is gone — spent — and "Newest" is back on Eve's own row, not left on Dan's: the
+      marker follows the list's own most-recent moment, not who happened to hold it a moment ago.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, focused, 5/5, no offer.
+      <strong>Way out from here:</strong> Remove any row to start a fresh offer; a sixth save attempt
+      here would refuse (→ story 01f), never silently overflow.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-01f">Baseline — the over-limit refusal, no offer standing</h2>
+  <span class="state-badge">state matrix row 7 — error (over-limit), no offer</span>
+  <p class="caption">
+    Carried behaviour (`remembered-names`), shown here to contrast with story 02's error-plus-offer
+    screen below: a full list refuses a sixth save with "Five names is the limit. Remove one to save
+    another.", and — because reaching a full list again while an offer stands would require a
+    successful save, and a successful save already ends whatever offer preceded it (po Decisions) —
+    this refusal and a live offer can never be observed together. No screen in this file shows both at
+    once, because none exists.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s01f-name">Name</label>
+      <input type="text" id="s01f-name" value="" aria-describedby="s01f-hint">
+      <p class="hint" id="s01f-hint">Saved: Ada, Bob, Cleo, Dan, Eve</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Frank</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="refusal">Five names is the limit. Remove one to save another.</p>
+      <div class="sort-control">
+        <input type="checkbox" id="s01f-sort">
+        <label for="s01f-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 40 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Bob</span>
+            <span class="row-age" aria-hidden="true">saved 30 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Bob</button>
+            <button type="button">Remove Bob</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Cleo</span>
+            <span class="row-age" aria-hidden="true">saved 20 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Cleo</button>
+            <button type="button">Remove Cleo</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Dan</span>
+            <span class="row-age" aria-hidden="true">saved 10 minutes ago</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Dan</button>
+            <button type="button">Remove Dan</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Eve</span>
+            <span class="row-age" aria-hidden="true">saved 2 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Eve</button>
+            <button type="button">Remove Eve</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button" class="is-focused">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      The refusal is words, not colour: a visitor using forced colours or reading with a screen reader
+      gets "Five names is the limit…" either way, never a colour cue alone.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, no offer, Save button
+      focused. <strong>Way out from here:</strong> Remove any row — fixes the limit and leaves a fresh
+      offer standing (→ story 01d's pattern) as a safety net for the removal itself.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-02">Story 02 — The offer holds only while the list is exactly as the removal left it</h2>
+  <span class="state-badge">state matrix row 6 — error (already-saved) + offer</span>
+  <p class="caption">
+    Scenario "A refused save does not end the offer, and pressing the offer still works and clears the
+    refusal". The visitor removed "Bob", is currently greeted "Hello, Ada" — a name already saved —
+    and has just activated "Save this name". The save is refused, but the offer survives the refusal
+    because nothing about the list actually changed.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s02-name">Name</label>
+      <input type="text" id="s02-name" value="" aria-describedby="s02-hint">
+      <p class="hint" id="s02-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="refusal">Ada is already saved.</p>
+      <p class="offer"><button type="button">Bring Bob back</button></p>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 12 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button" class="is-focused">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      "Bring Bob back" is still here even though a refusal is showing: only a save that actually adds a
+      row, or a name falling off, ends the offer — a refusal changes nothing about the list, so the
+      offer that promises to restore it stays exactly as good as it was. Pressing it next would put Bob
+      back and clear this refusal in the same press.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, refusal + offer both
+      showing, Save button focused. <strong>Way out from here:</strong> press "Bring Bob back" (clears
+      the refusal in the same press) · or greet a name not already saved and retry Save.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-02b">Story 02 — a further removal replaces the offer, never stacks it</h2>
+  <span class="state-badge">state matrix row 10 — offer replaced (transition) → row 2 pattern (empty + offer)</span>
+  <p class="caption">
+    Scenario "A further removal replaces the offer, and only the later removal comes back". Ada and
+    Bob were both saved; the visitor removed Ada first — "Bring Ada back" stood briefly — then removed
+    Bob too. "Bring Bob back" is what remains: "Bring Ada back" is not stacked underneath it or
+    reachable any other way. At most one name is ever waiting to come back (seed, Agreed scope).
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s02b-name">Name</label>
+      <input type="text" id="s02b-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Bob</div>
+
+    <div class="saved-names-region is-focused" role="region" aria-label="Saved names" aria-live="polite" tabindex="-1">
+      <h2>Saved names</h2>
+      <p class="offer"><button type="button">Bring Bob back</button></p>
+      <p class="empty">No names saved yet.</p>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      No button anywhere reads "Bring Ada back" — the first offer did not survive to be pressed later,
+      it was replaced the instant the second removal happened, before the visitor did anything else.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, focused, empty, only
+      the newer offer live. <strong>Way out from here:</strong> press "Bring Bob back", or Greet me →
+      Save this name to start over.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-02c">Story 02 — the offer standing beside an unrelated field error</h2>
+  <span class="state-badge">state matrix row 11 — error (blank field) + offer, unrelated regions</span>
+  <p class="caption">
+    Scenario "The offer survives everything that does not write to the list" (the blank-submission
+    step). Ada and Bob were saved; the visitor removed Bob, so "Bring Bob back" stands, then submitted
+    a blank Name field. The field-level alert and the offer sit in two different regions and neither
+    touches the other: the alert says nothing about the list, and the offer says nothing about the
+    field.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab</p>
+    <form>
+      <label for="s02c-name">Name</label>
+      <input type="text" id="s02c-name" value="" aria-describedby="s02c-alert s02c-hint">
+      <p role="alert" id="s02c-alert">Please enter your name.</p>
+      <p class="hint" id="s02c-hint">Saved: Ada</p>
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="offer"><button type="button">Bring Bob back</button></p>
+      <div class="sort-control">
+        <input type="checkbox" id="s02c-sort">
+        <label for="s02c-sort" style="display:inline;font-weight:normal;margin:0;">Newest first</label>
+      </div>
+      <ul class="rows">
+        <li class="row">
+          <span class="row-left">
+            <span class="row-name">Ada</span>
+            <span class="row-age" aria-hidden="true">saved 12 minutes ago</span>
+            <span class="row-marker">Newest</span>
+          </span>
+          <span class="row-controls">
+            <button type="button">Greet me again as Ada</button>
+            <button type="button">Remove Ada</button>
+          </span>
+        </li>
+      </ul>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Focus stayed in the Name field for the alert (it is the field's own error, not a list event);
+      the Saved names region never moved and never re-announced, because a blank submission is not a
+      write to the list (seed, Agreed scope, applied by exclusion).
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Name field showing a blank-submission
+      alert; Saved names region unaffected, offer still live. <strong>Way out from here:</strong> type
+      a name and Greet me again (clears the alert) — the offer is untouched either way.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-03b">Story 03 — the offer still stands just short of a day</h2>
+  <span class="state-badge">state matrix row 12 — offer, near-expiry boundary</span>
+  <p class="caption">
+    Scenario "The offer still stands just short of a day". Ada was saved 23 hours and 55 minutes ago
+    and removed moments later, so "Bring Ada back" appeared; 4 more minutes have now passed — the held
+    entry is 23h59m old, one minute inside the day-old cutoff. The offer is exactly as workable as it
+    was the moment it appeared. Compare against the screen below: the same held entry, six minutes
+    later instead of four, on the far side of the same boundary.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab — 23h59m since Ada was saved</p>
+    <form>
+      <label for="s03b-name">Name</label>
+      <input type="text" id="s03b-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="offer"><button type="button">Bring Ada back</button></p>
+      <p class="empty">No names saved yet.</p>
+      <div class="save-control"><button type="button">Save this name</button></div>
+    </div>
+    <p class="role-note">
+      Still here, still certain to work — the offer never counts down and nothing about it hints that
+      a boundary is close (seed, Decisions: "the offer stands rather than counting down"). A visitor
+      reading this screen has no way to tell it apart from the moment right after the removal.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, empty, offer live, one
+      tick from its own boundary. <strong>Way out from here:</strong> press "Bring Ada back" now — it
+      is guaranteed to work up to, and excluding, the 24-hour mark (→ story 03 below, past it).
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="story">
+  <h2 id="story-03">Story 03 — The held entry ages like the rest</h2>
+  <span class="state-badge">state matrix row 13 — empty, offer just expired</span>
+  <p class="caption">
+    Scenario "The offer goes, silently, once the held entry turns a day old". Ada was saved 23 hours
+    and 55 minutes ago and removed moments later; 6 more minutes have now passed with the visitor
+    doing nothing. Her held moment has crossed the same day-old cutoff every visible row already
+    obeys, so the offer that would have brought her back is simply gone — no message, nothing
+    announced, exactly like the Save button or the sort control when there is nothing for them to do.
+  </p>
+  <div class="screen">
+    <p class="app-heading">sdlc2 lab — 24h01m since Ada was saved</p>
+    <form>
+      <label for="s03-name">Name</label>
+      <input type="text" id="s03-name" value="">
+      <div><button type="submit">Greet me</button></div>
+    </form>
+    <div class="status-region" role="status" aria-live="polite">Hello, Ada</div>
+
+    <div class="saved-names-region" role="region" aria-label="Saved names" aria-live="polite">
+      <h2>Saved names</h2>
+      <p class="empty">No names saved yet.</p>
+    </div>
+    <p class="role-note">
+      No "Bring Ada back" button, and no text anywhere saying it ended — the seed's own rule that the
+      offer never announces its own ending, applied to the one clock-driven change on this screen.
+    </p>
+    <p class="nav-note">
+      <strong>You are here:</strong> route <code>/</code>, Saved names region, empty, no offer — the
+      one designed dead end for the offer itself (Handoff AC §7). <strong>Way out from here:</strong>
+      type a name → Greet me → Save this name — the ordinary path, undisturbed and still reachable.
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
