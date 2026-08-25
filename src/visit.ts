@@ -453,7 +453,7 @@ export function refusalText(visit: Visit): string | null {
  * R43. The name the offer would bring back, or null when there is nothing waiting to come back.
  *
  * A name and never a sentence, exactly as newestSavedName answers with a name and the component
- * writes the word "Newest": `Bring <name> back` is a control's name, and control names are the
+ * writes the word "Newest": `Bring back <name>` is a control's name, and control names are the
  * component's, beside the two that already sit on every row (ADR-0047). This module owns the
  * messages a visitor reads; it does not own the words on buttons.
  *

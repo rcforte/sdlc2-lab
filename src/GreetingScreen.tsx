@@ -260,7 +260,7 @@ export function GreetingScreen() {
             {/* type="button" and outside the <form>, so activating it is a write to the list and
                 never a submission of the visitor's draft. */}
             <button type="button" onClick={bringTheNameBack}>
-              Bring {offered} back
+              Bring back {offered}
             </button>
           </p>
         )}
