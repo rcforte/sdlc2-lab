@@ -1,6 +1,15 @@
 # ADR-0047 — The offer is presented like the controls it sits among: the component names it, and pressing it reuses the removal's rules
 
 - **Status:** Proposed — accepted pending the sdlc2 VERIFY gate
+- **Amended by:** **VH-01's resolution (2026-08-24)**, which changed the label to `Bring back
+  <name>`. The two places below that spell `Bring Ada back` — the rejected domain-projection option,
+  and the JSX of the option chosen — are the words as this record left them, and are stale in that
+  one respect only. Everything else stands and is load-bearing: the component still names the
+  offer, the name is still interpolated into a template rather than composed by the domain, and
+  pressing it still reuses the removal's rules. The change strengthens this record's own title —
+  `Remove <name>` and `Greet me again as <name>` both end with the name, and the offer was the one
+  control that did not, so putting the name last is what *presented like the controls it sits
+  among* asks for. It also survives a name that is not a name, which the old shape did not.
 - **Date:** 2026-08-23
 - **Feature:** `undo-a-removal` (`.sdlc2/features/undo-a-removal/design.md` §2.5, §4.3)
 - **Deciders:** architect node (advisory: architect-critic; human gate at VERIFY)

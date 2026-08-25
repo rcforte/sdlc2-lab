@@ -35,6 +35,17 @@ trailing punctuation (`Ada!`), or a whole sentence. `Bring Ada! back` and
 example `Bring back: <name>`), which would change one line of JSX and every scenario's expected button
 name. No scenario pins wording for such a name today, deliberately.
 
+**Resolution (human, 2026-08-24). Re-shaped — the label is now `Bring back <name>`.** Option (b),
+but not the `Bring back: <name>` this record proposed: the colon is unnecessary once the name simply
+goes last. The deciding reason is a convention the screen already had and the offer was the only
+control breaking — `Remove <name>` and `Greet me again as <name>` both end with the name, and
+`Bring <name> back` was the one control putting it in the middle. That is also exactly why it broke:
+with nothing following the name, `Bring back Ada!` and `Bring back I'll do it later` read as well as
+that content allows, and no template accident is possible. ADR-0047's own title — the offer is
+presented like the controls it sits among — was already reaching for this, and that ADR now carries
+an amendment note. Applied on `main` in its own commit: two code sites and the 52 comments quoting
+the Gherkin. The run's artifacts keep the wording the graph shipped.
+
 ---
 
 ## VH-02 — The screen-reader pass: is the offer heard when it arrives, and silent when it goes?
@@ -66,6 +77,19 @@ standing before the tick, and nobody should read its survival as covering this.
 (b) nothing is announced when it ages out on a tick; (c) pressing it announces the list with the name
 back in it, as a removal already does.
 
+**Status 2026-08-24: narrowed with browser evidence, not closed. Still high.** The two mechanisms
+this record rests on are confirmed *present* — checked in Chromium, driving the built feature:
+the region really is `<section aria-live="polite" tabindex="-1">`; after a removal `document.activeElement`
+really is that section, so the offer does arrive in a region the visitor has just been moved into;
+and `aria-relevant` really is unset, so the default `additions text` applies and a removed node is
+outside what would be announced. So the design does what it says structurally.
+
+**(a), (b) and (c) all remain open, and all three still need a person with a screen reader.** No
+browser tool can answer any of them: whether an addition to a region that has just taken focus is
+announced or swallowed into the focus change is that screen reader's business, and silence is not
+observable at all through automation. Merged with this open, deliberately — the same call saved-at
+made (d7c28fc), and a failed pass is a fix to merged code, which this repo absorbs.
+
 ---
 
 ## VH-03 — The offer's place: a refusal above it, a sort control below it, rows under both
@@ -83,6 +107,17 @@ band. And **the emptied list**, where the region reads *No names saved yet.* wit
 sitting above it: true, and arguably contradictory-looking.
 
 **Confirm:** the order reads as intended in both, or say which should move.
+
+**Resolution (human, 2026-08-24). Confirmed as designed — nothing moves.** Both moments were looked
+at in a real browser. The emptied list reads fine: `Bring back Ada!` above `No names saved yet.` is
+only contradictory if the sentence is read as describing the region rather than the list, and putting
+the way back first is right. The refusal stack is the real one — `Bob is already saved.` directly
+above `Bring back Ada!` — and it stands, because each message names its own subject, so adjacency
+costs a beat of attention rather than comprehension: the two cannot be read as one statement once the
+names are heard. Weighed against that: this project has no stylesheet, no `className` and no inline
+styles anywhere, so every alternative is structural — moving the offer below the sort control was the
+serious one, and it buys a small gain in exchange for putting news beneath a persistent control and
+departing from the mockup the `ux` node was scored against. Not worth it for a beat of attention.
 
 ---
 
@@ -105,3 +140,12 @@ button on screen that does nothing. It was rejected for that reason.
 
 **Confirm:** the trade is the right way round — a control that always does what it says, over a
 cutoff enforced to the millisecond.
+
+
+**Resolution (human, 2026-08-24). Confirmed — the trade is the right way round.** Verified in the
+code before deciding: `bringTheNameBack` hands `bringBack` the render's own `now`, which is the same
+number `offeredName(visit, now)` used to decide the control should exist, so a visible offer cannot
+turn out to be inert. The window is real and bounded by `TICK_MS`, and it is the staleness already
+accepted for every age reading on the screen. A live button that does nothing is a worse failure than
+a cutoff enforced fifteen seconds late — especially for a rule the seed itself calls nearly
+unreachable, since a visit dies at unmount.
