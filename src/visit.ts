@@ -40,6 +40,23 @@ export type SaveRefusal =
  */
 export type SavedName = { readonly name: string; readonly savedAt: number }
 
+/**
+ * The one removal this visit is still offering to take back (seed, Ubiquitous language): the
+ * saved name that left, and the place it held.
+ *
+ * `entry` is the object the list was already holding, never a rebuilt one, which is what makes
+ * "the same moment, not a fresh one" structural rather than remembered (ADR-0042) — bringing a
+ * name back constructs no SavedName, so there is no code that could re-date it.
+ *
+ * `position` is an index into visit.savedNames — the order the names were saved in, never the
+ * order they are displayed in. This module cannot see the view (INV-30), and does not need to:
+ * every view is a pure function of the list, so restoring the list restores the view.
+ */
+export type LastRemoval = {
+  readonly entry: SavedName
+  readonly position: number
+}
+
 /** INV-32. A minute and an hour, in milliseconds, beside the one rule that reads them. */
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
@@ -65,6 +82,14 @@ export type Visit = {
   readonly lastSaveRefusal: SaveRefusal | null
   /** INV-21. Writes to the list this visit. Monotonic; identity, not a quantity to display. */
   readonly savedNamesRevision: number
+  /**
+   * INV-34. The removal this visit is still offering to take back; null when there is nothing
+   * waiting to come back. One field rather than a list, so "at most one name is ever waiting,
+   * no history, no stack" (R39) is unrepresentable-otherwise rather than a rule someone enforces.
+   * It is a field of the visit and not of the screen because it drives a write to the list and
+   * its own rules are rules about the list, so the two can never disagree (ADR-0044).
+   */
+  readonly lastRemoval: LastRemoval | null
 }
 
 /** The state a fresh visit starts from. */
@@ -76,6 +101,7 @@ export const newVisit: Visit = {
   savedNames: [],
   lastSaveRefusal: null,
   savedNamesRevision: 0,
+  lastRemoval: null,
 }
 
 /**
@@ -105,38 +131,46 @@ export function submit(visit: Visit, rawName: string): Visit {
     greetingCount: visit.greetingCount + 1,
     lastSubmissionWasBlank: false,
     blankCount: visit.blankCount,
-    // INV-23: only withSavedNames ever writes the three list fields. This branch is an
+    // INV-23: only withSavedNames ever writes the four list fields. This branch is an
     // exhaustive literal, so forgetting to carry one is a compile error rather than a silent
-    // loss on every greeting — a blank submission never touching the list, and a greeting never
-    // re-announcing the region, both follow from here. The blank branch spreads, so it carries
-    // them for free.
+    // loss on every greeting — a blank submission never touching the list, a greeting never
+    // re-announcing the region, and greeting again leaving a standing offer where it was, all
+    // follow from here. The blank branch spreads, so it carries them for free.
     savedNames: visit.savedNames,
     lastSaveRefusal: visit.lastSaveRefusal,
     savedNamesRevision: visit.savedNamesRevision,
+    lastRemoval: visit.lastRemoval,
   }
 }
 
 /**
- * INV-20, INV-21. The only writer of savedNames, lastSaveRefusal and savedNamesRevision — module
- * private on purpose, so the three can never disagree.
+ * INV-20, INV-21, INV-34. The only writer of savedNames, lastSaveRefusal, savedNamesRevision and
+ * lastRemoval — module private on purpose, so the four can never disagree.
  *
- * It takes the new list and the new refusal in one call, which makes a list write without a
- * refusal decision unrepresentable: "clear the message too" is not something save and remove
- * each have to remember (ADR-0027). Every call is a new event, including a refusal that changed
- * nothing — that is what keeps the region from falling silent when the visitor presses Save
- * twice (ADR-0030). Commands that could not do anything return their input by identity and never
- * reach this function, so a press with no possible effect is not counted.
+ * It takes the new list, the new refusal and the offer's fate in one call, which makes a list
+ * write without a refusal decision unrepresentable: "clear the message too" is not something save
+ * and remove each have to remember (ADR-0027). The fourth parameter is required for the same
+ * reason and answers the same question about the offer — there is no path that changes the list
+ * without saying what becomes of the name waiting to come back, so a forgotten offer is a compile
+ * error rather than a restore into a list that has moved underneath it (ADR-0044).
+ *
+ * Every call is a new event, including a refusal that changed nothing — that is what keeps the
+ * region from falling silent when the visitor presses Save twice (ADR-0030). Commands that could
+ * not do anything return their input by identity and never reach this function, so a press with
+ * no possible effect is not counted.
  */
 function withSavedNames(
   visit: Visit,
   savedNames: readonly SavedName[],
   refusal: SaveRefusal | null,
+  lastRemoval: LastRemoval | null,
 ): Visit {
   return {
     ...visit,
     savedNames,
     lastSaveRefusal: refusal,
     savedNamesRevision: visit.savedNamesRevision + 1,
+    lastRemoval,
   }
 }
 
@@ -145,9 +179,19 @@ function withSavedNames(
  * text exists in a single expression instead of once inside each of save, greetAgain and remove,
  * and so "identity is the name alone" cannot come to mean three different things now that entries
  * carry a second field (ADR-0035).
+ *
+ * It answers with the position rather than with yes-or-no so that removal can build both the
+ * shortened list and the record of what it took out of one answer (INV-35). A second `===`
+ * written inside remove would be a second spelling of identity, which is the thing this function
+ * exists to prevent; holds below is that same answer read as a question.
  */
+function positionOf(savedNames: readonly SavedName[], name: string): number {
+  return savedNames.findIndex((saved) => saved.name === name)
+}
+
+/** INV-28. Whether the list is holding this name — positionOf's answer, read as a question. */
 function holds(savedNames: readonly SavedName[], name: string): boolean {
-  return savedNames.some((saved) => saved.name === name)
+  return positionOf(savedNames, name) !== -1
 }
 
 /**
@@ -178,13 +222,22 @@ function holds(savedNames: readonly SavedName[], name: string): boolean {
 export function save(visit: Visit, savedAt: number): Visit {
   const name = visit.greetedName
   if (name === null) return visit
+  // A refusal adds, moves and removes nothing, so a name waiting to come back is as safe to
+  // restore after it as it was before it, and the offer stands (R41; feature.md, Decisions (po)).
   if (holds(visit.savedNames, name)) {
-    return withSavedNames(visit, visit.savedNames, { kind: 'already-saved', name })
+    return withSavedNames(
+      visit,
+      visit.savedNames,
+      { kind: 'already-saved', name },
+      visit.lastRemoval,
+    )
   }
   if (visit.savedNames.length >= SAVED_NAMES_LIMIT) {
-    return withSavedNames(visit, visit.savedNames, { kind: 'full' })
+    return withSavedNames(visit, visit.savedNames, { kind: 'full' }, visit.lastRemoval)
   }
-  return withSavedNames(visit, [...visit.savedNames, { name, savedAt }], null)
+  // A save that actually adds a row moves the list, so the offer ends: the place the held entry
+  // came from is no longer the place it would go back to (R41).
+  return withSavedNames(visit, [...visit.savedNames, { name, savedAt }], null, null)
 }
 
 /**
@@ -208,25 +261,34 @@ export function greetAgain(visit: Visit, name: string): Visit {
 }
 
 /**
- * INV-19, INV-20, INV-21. Takes exactly the named entry out of the list and leaves every other
- * name where it was.
+ * INV-19, INV-20, INV-21, INV-35. Takes exactly the named entry out of the list, leaves every
+ * other name where it was, and remembers what it took and where it took it from — because a
+ * removal the visitor performed is the one thing this screen offers to take back (R38).
  *
- * Order is preserved because filter preserves it, not because a second rule says so, and "exactly
- * one" follows from the list holding no duplicates (INV-17) rather than from a count. Total — a
- * name that is not saved is not an error, it is nothing to do, so the visit is returned unchanged
- * and the write is not counted as an event.
+ * Order is preserved because the two slices either side of the position preserve it, not because
+ * a second rule says so, and "exactly one" follows from the list holding no duplicates (INV-17)
+ * rather than from a count. Total — a name that is not saved is not an error, it is nothing to
+ * do, so the visit is returned unchanged, the write is not counted as an event, and no offer is
+ * left behind for a removal that removed nothing.
  *
- * It cannot break the list's shape: a filter cannot add a name, duplicate one, or reorder the
+ * One position answers both halves, which is INV-35: the entry that is recorded is read out of
+ * the list at the same index the two slices cut around, so the record and the shortened list
+ * cannot come to describe different rows. Assigning the record rather than pushing it is the
+ * whole of "each removal replaces the offer left by the one before it" (R39).
+ *
+ * It cannot break the list's shape: slicing cannot add a name, duplicate one, or reorder the
  * rest, which is why INV-17 still has save as its single owner. It cannot touch the greeting
  * either — the greeting is not one of the fields withSavedNames writes — so "removing does not
  * change who the visitor is greeted as" needs no rule of its own.
  */
 export function remove(visit: Visit, name: string): Visit {
-  if (!holds(visit.savedNames, name)) return visit
+  const position = positionOf(visit.savedNames, name)
+  if (position === -1) return visit
   return withSavedNames(
     visit,
-    visit.savedNames.filter((saved) => saved.name !== name),
+    [...visit.savedNames.slice(0, position), ...visit.savedNames.slice(position + 1)],
     null,
+    { entry: visit.savedNames[position], position },
   )
 }
 
@@ -234,15 +296,51 @@ export function remove(visit: Visit, name: string): Visit {
 const DAY_MS = 24 * HOUR_MS
 
 /**
+ * INV-37. The day-old cutoff, in one expression: whether a moment is more than a day behind a
+ * given reading of the clock.
+ *
+ * *Older than* a day, not *at least* a day — a moment exactly DAY_MS behind has not aged. That is
+ * INV-31's comparison moved rather than copied, and moving it is the point: the rule about which
+ * rows there still are and the rule about whether an offer still stands now read the same
+ * expression, so the held entry cannot come to obey a cutoff a few milliseconds away from the one
+ * every visible row obeys. Two spellings of one boundary is exactly the kind of drift no test
+ * would catch until a visitor was handed back a name that vanished on the next tick.
+ *
+ * It takes the reading rather than taking one: this module never reads a clock (INV-33), so both
+ * of its callers stay deterministic functions of their arguments (ADR-0036).
+ */
+function hasAged(savedAt: number, now: number): boolean {
+  return now - savedAt > DAY_MS
+}
+
+/**
+ * INV-38. Whether the offer stands: there is a removal waiting to be taken back, and the entry it
+ * would bring back is not yet a day old.
+ *
+ * One predicate, read by offeredName — whether the screen shows a control at all — and by
+ * bringBack — whether the command does anything. That is what makes ADR-0043's promise literal:
+ * the offer is either present and certain to work, or absent, because both halves ask one
+ * question rather than two that could answer differently. It is the same shape holds already has
+ * for save, remove and greetAgain.
+ *
+ * A type predicate, so the null check narrows for the caller and neither of the two re-tests it.
+ */
+function stands(held: LastRemoval | null, now: number): held is LastRemoval {
+  return held !== null && !hasAged(held.entry.savedAt, now)
+}
+
+/**
  * INV-31. Drops every saved name that is more than a day old, measured from its own saved-at
  * moment. A name leaves on its own, with the visitor doing nothing, so that the list stays a
  * record of names they still care about rather than everything they have ever typed.
  *
  * *Older than* a day, not *at least* a day: a name exactly DAY_MS old stays, which is the cutoff
- * the strict comparison spells. Nobody can see the difference on a screen — it re-reads the clock
- * once every fifteen seconds, so a row leaves at the first reading past its own mark and a reading
- * landing exactly on that millisecond is a coincidence no visitor can arrange. It is written down
- * because the words are "older than a day" and a rule should say what its words say.
+ * hasAged spells — and it spells it for the offer too, so a row and the name waiting to come back
+ * leave at the same millisecond rather than at two cutoffs that merely happen to agree (INV-37).
+ * Nobody can see the difference on a screen — it re-reads the clock once every fifteen seconds, so
+ * a row leaves at the first reading past its own mark and a reading landing exactly on that
+ * millisecond is a coincidence no visitor can arrange. It is written down because the words are
+ * "older than a day" and a rule should say what its words say.
  *
  * The cutoff is measured from the moment, so a calendar boundary is not a moment: a name saved at
  * 23:50 is twenty minutes old at ten past midnight, exactly as it would be at ten past two.
@@ -263,9 +361,56 @@ const DAY_MS = 24 * HOUR_MS
  * (INV-33), which is what keeps the cutoff a deterministic function of its arguments (ADR-0036).
  */
 export function expire(visit: Visit, now: number): Visit {
-  const kept = visit.savedNames.filter((saved) => now - saved.savedAt <= DAY_MS)
+  const kept = visit.savedNames.filter((saved) => !hasAged(saved.savedAt, now))
   if (kept.length === visit.savedNames.length) return visit
-  return withSavedNames(visit, kept, null)
+  // A name falling off is a write to the list like any other, so it ends the offer — even when
+  // the name that fell off is not the one waiting to come back (R41). The list the held entry
+  // would have gone back into no longer exists.
+  return withSavedNames(visit, kept, null, null)
+}
+
+/**
+ * INV-34, INV-36. Puts the held entry back into the list at the index it held: the same text, the
+ * same saved-at moment, the same place (R40, ADR-0042).
+ *
+ * It is the literal inverse of the deletion remove performed, applied to the list that deletion
+ * produced — which is why nothing here counts the list against the five-name limit and nothing
+ * needs to. An offer exists only because remove created it, and every other write to the list
+ * replaces it with null, so the list this is handed is exactly the list remove left behind: the
+ * value that comes back is the value that satisfied INV-17 a moment before the removal. The limit
+ * is inherited by identity of the value rather than re-enforced by a second owner (ADR-0045).
+ *
+ * It constructs no SavedName — save is still the only function that does (INV-27) — so the moment
+ * is not re-derived and cannot be. Bringing a name back is a write to the list, so it leaves
+ * through withSavedNames like every other write: the revision moves and the region has new
+ * contents to announce (INV-21), and a standing refusal goes with the list it described (INV-20).
+ * The greeting is not one of the four fields that writer touches, so "the greeting is untouched"
+ * needs no rule of its own.
+ *
+ * The offer is spent, not restored: there is no undoing the undo (seed, Out of scope). Total —
+ * with nothing waiting to come back, or with a held entry already more than a day old, there is
+ * nothing to do, so the visit is returned by identity and the press is never a refusal and never
+ * a message (ADR-0043).
+ *
+ * It asks stands rather than merely checking for null, and it asks it of the same reading of the
+ * clock the render that drew the control used (P29). That is what makes "either present and
+ * certain to work, or absent" literal: a second, later reading could disagree with the render,
+ * which is a button on screen that does nothing — the one failure the seed rules out. The reading
+ * is handed in for the reason save and expire are handed theirs (INV-33, ADR-0036).
+ */
+export function bringBack(visit: Visit, now: number): Visit {
+  const held = visit.lastRemoval
+  if (!stands(held, now)) return visit
+  return withSavedNames(
+    visit,
+    [
+      ...visit.savedNames.slice(0, held.position),
+      held.entry,
+      ...visit.savedNames.slice(held.position),
+    ],
+    null,
+    null,
+  )
 }
 
 /** INV-3. '' when there is no greeting yet — the status region is always rendered (P1). */
@@ -302,6 +447,30 @@ export function refusalText(visit: Visit): string | null {
     case 'full':
       return FULL_LIST_MESSAGE
   }
+}
+
+/**
+ * R43. The name the offer would bring back, or null when there is nothing waiting to come back.
+ *
+ * A name and never a sentence, exactly as newestSavedName answers with a name and the component
+ * writes the word "Newest": `Bring <name> back` is a control's name, and control names are the
+ * component's, beside the two that already sit on every row (ADR-0047). This module owns the
+ * messages a visitor reads; it does not own the words on buttons.
+ *
+ * Whether the control exists at all is this one answer, so a screen cannot show an offer the
+ * command would decline to act on — there is one question, asked in one place (ADR-0043), and it
+ * is stands, which bringBack asks too.
+ *
+ * The held entry ages like every visible row: once its own moment is more than a day old this
+ * answers null and the control is simply not rendered (R42). That ageing is *derived here on
+ * every read* and never written anywhere — expire does not touch the offer, no revision moves and
+ * no message is cleared — which is precisely why the ending is silent rather than announced
+ * (ADR-0046). A name brought back therefore goes on ageing from the moment it already had, since
+ * nothing about coming back re-dates it.
+ */
+export function offeredName(visit: Visit, now: number): string | null {
+  const held = visit.lastRemoval
+  return stands(held, now) ? held.entry.name : null
 }
 
 /**

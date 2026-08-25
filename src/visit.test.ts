@@ -2,12 +2,14 @@ import {
   ageReadingText,
   ALERT_MESSAGE,
   alertText,
+  bringBack,
   expire,
   greetAgain,
   greetingText,
   isBlank,
   newestSavedName,
   newVisit,
+  offeredName,
   remove,
   save,
   savedNamesInView,
@@ -319,5 +321,62 @@ describe('Visit', () => {
     const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
 
     expect(remove(saved, 'Zoe')).toBe(saved)
+  })
+
+  // -----------------------------------------------------------------------------------------
+  // undo-a-removal — the two answers about bringing a name back that no scenario can reach.
+  // Everything a visitor perceives about the offer is a scenario in GreetingScreen.test.tsx;
+  // what sits here is the value equality the five-name limit is inherited from, and the guard on
+  // a command the screen never offers (design.md §5.3).
+  // -----------------------------------------------------------------------------------------
+
+  // INV-35, INV-36: bringing back is the removal's exact inverse, at the middle of a full list
+  // where an off-by-one shows. This is the assertion the limit rests on: no code counts the list
+  // on the bring-back path (INV-17 keeps save as its only enforcer), and it needs none, because
+  // the value that comes back is the value that satisfied the limit a moment earlier — same
+  // length, same members, same order, and the same entry objects, so no moment was re-derived.
+  // The seam proves the visitor-facing half (issue 01's five-name scenario); this proves the
+  // equality it inherits from.
+  it('puts the removed entry back exactly where it was, entry objects and all (INV-35, INV-36)', () => {
+    const names = ['Ada', 'Bob', 'Cleo', 'Dan', 'Eve']
+    const full = names.reduce(
+      (visit, name, index) => save(submit(visit, name), AN_INSTANT + index * 60_000),
+      newVisit,
+    )
+
+    const restored = bringBack(remove(full, 'Cleo'), AN_INSTANT + 5 * 60_000)
+
+    expect(restored.savedNames).toEqual(full.savedNames)
+    // …and the entries are the very objects the list already held, never rebuilt ones: a saved-at
+    // moment cannot survive being reconstructed from anything the removal did not keep.
+    restored.savedNames.forEach((entry, index) => expect(entry).toBe(full.savedNames[index]))
+  })
+
+  // INV-34: bringBack is total. No scenario can reach this, because there is no offer on screen
+  // to press when there is no last removal — the rule exists so that a second caller cannot make
+  // a restore out of nothing. Returned by identity, so a press that could do nothing is not a
+  // write of the list either (INV-21) and the region is not asked to re-announce contents that
+  // did not change. It is the same guard idiom save, remove and greetAgain already carry.
+  it('does nothing when there is no removal to take back (INV-34)', () => {
+    const saved = save(submit(newVisit, 'Ada'), AN_INSTANT)
+
+    expect(bringBack(saved, AN_INSTANT)).toBe(saved)
+    expect(bringBack(saved, AN_INSTANT).savedNamesRevision).toBe(saved.savedNamesRevision)
+  })
+
+  // INV-37, INV-38: the held entry obeys the day-old cutoff every visible row obeys, and obeys it
+  // at exactly the same millisecond — *older than* a day, not *at least* a day, which is the
+  // comparison expire has always spelled. Asserted here rather than at the seam because sitting on
+  // the boundary through the screen would cost a 24-hour scenario per side for a difference no
+  // visitor can arrange: the screen re-reads the clock once every fifteen seconds, so a reading
+  // landing on that millisecond is a coincidence, and the two acceptance scenarios either side of
+  // the boundary are four minutes out and six minutes past it. Asserted through offeredName
+  // because stands is module-private and stays that way — one answer, read here as the screen
+  // reads it.
+  it('offers the held entry at exactly a day old, and not a millisecond later (INV-37, INV-38)', () => {
+    const removed = remove(save(submit(newVisit, 'Ada'), AN_INSTANT), 'Ada')
+
+    expect(offeredName(removed, AN_INSTANT + A_DAY)).toBe('Ada')
+    expect(offeredName(removed, AN_INSTANT + A_DAY + 1)).toBeNull()
   })
 })
